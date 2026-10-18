@@ -1,895 +1,808 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>HistoPrep — предобработка срезов</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>TRON — DISC BATTLE</title>
 <style>
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif;
-    background: #14161a; color: #e6e8ec; height: 100vh; overflow: hidden;
-  }
-  header {
-    padding: 10px 18px; background: #1b1e24; border-bottom: 1px solid #2a2f38;
-    display: flex; align-items: baseline; gap: 14px;
-  }
-  header h1 { margin: 0; font-size: 18px; }
-  header .sub { color: #8a93a3; font-size: 12px; }
-  header .warn { color: #f59e0b; font-size: 11px; margin-left: auto; }
-
-  main {
-    display: grid; grid-template-columns: 220px 1fr 320px;
-    gap: 10px; padding: 10px; height: calc(100vh - 50px);
-  }
-  .panel {
-    background: #1b1e24; border: 1px solid #2a2f38; border-radius: 8px;
-    padding: 10px; display: flex; flex-direction: column; overflow: hidden;
-  }
-  .panel h2 {
-    margin: 0 0 8px; font-size: 12px; color: #a9b2c0;
-    font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
-  }
-  button {
-    width: 100%; padding: 8px; margin-bottom: 6px;
-    background: #262c36; color: #e6e8ec; border: 1px solid #333a46;
-    border-radius: 6px; cursor: pointer; font-size: 12px;
-  }
-  button:hover { background: #303845; }
-  button.primary { background: #2563eb; border-color: #2563eb; }
-  button.primary:hover { background: #1d4ed8; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-
-  #fileList {
-    list-style: none; padding: 0; margin: 6px 0; overflow-y: auto; flex: 1;
-  }
-  #fileList li {
-    padding: 5px 7px; border-radius: 4px; font-size: 11px;
-    cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  #fileList li:hover { background: #232936; }
-  #fileList li.active { background: #2563eb; }
-  .info { font-size: 10px; color: #8a93a3; margin-top: 4px; }
-
-  .preview-box {
-    flex: 1; position: relative; display: flex; align-items: center;
-    justify-content: center; background: #0d0f12; border-radius: 6px;
-    overflow: hidden; min-height: 200px;
-  }
-  #previewCanvas { max-width: 100%; max-height: 100%; }
-  .placeholder { color: #555; font-size: 13px; }
-
-  .split-row {
-    display: flex; align-items: center; gap: 8px; margin-top: 8px;
-    font-size: 11px; color: #a9b2c0;
-  }
-  .split-row input { flex: 1; }
-
-  .params-scroll { overflow-y: auto; flex: 1; padding-right: 4px; }
-  fieldset {
-    border: 1px solid #2a2f38; border-radius: 6px; padding: 6px 8px; margin: 0 0 8px;
-  }
-  legend { font-size: 11px; color: #8ab4ff; padding: 0 4px; }
-  label { display: block; font-size: 11px; color: #c4cbd6; margin-bottom: 5px; }
-  label output { float: right; color: #8ab4ff; font-variant-numeric: tabular-nums; }
-  input[type=range] { width: 100%; margin-top: 2px; }
-  input[type=checkbox] { margin-right: 5px; vertical-align: middle; }
-  select {
-    width: 100%; padding: 4px; background: #262c36; color: #e6e8ec;
-    border: 1px solid #333a46; border-radius: 4px; font-size: 11px;
-  }
-  .buttons { margin-top: 8px; }
-  .links { margin-top: 8px; font-size: 11px; }
-  .links a { color: #8ab4ff; display: block; margin-bottom: 3px; }
-
-  .spinner {
-    position: absolute; top: 8px; right: 10px;
-    background: rgba(0,0,0,.7); padding: 4px 10px; border-radius: 5px;
-    font-size: 11px; color: #ffd166;
-  }
-  .hidden { display: none !important; }
-
-  .progress-bar {
-    height: 4px; background: #262c36; border-radius: 2px;
-    overflow: hidden; margin-top: 6px;
-  }
-  .progress-bar > div {
-    height: 100%; background: #2563eb; width: 0;
-    transition: width .15s ease;
-  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  html,body{width:100%;height:100%;background:#000;overflow:hidden;touch-action:none;}
+  canvas{display:block;width:100%;height:100%;}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.min.js"></script>
 </head>
 <body>
-
-<header>
-  <h1>HistoPrep</h1>
-  <span class="sub">предобработка транскриптомных срезов</span>
-  <span class="warn">⚠ браузерная версия — без научных метаданных в TIFF</span>
-</header>
-
-<main>
-  <section class="panel">
-    <h2>Файлы</h2>
-    <input type="file" id="fileInput" multiple accept=".tif,.tiff,.png,.jpg,.jpeg,.bmp" hidden>
-    <button onclick="fileInput.click()">Добавить файлы…</button>
-    <ul id="fileList"></ul>
-    <div class="info" id="fileInfo"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Предпросмотр «до/после»</h2>
-    <div class="preview-box">
-      <canvas id="previewCanvas"></canvas>
-      <div class="placeholder" id="placeholder">Откройте изображение…</div>
-      <div class="spinner hidden" id="spinner">Обработка…</div>
-    </div>
-    <div class="split-row">
-      <span>Разделитель:</span>
-      <input type="range" id="splitSlider" min="0" max="100" value="50">
-      <span id="splitVal">50%</span>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>Параметры</h2>
-    <div class="params-scroll">
-
-      <fieldset>
-        <legend>Выравнивание освещения</legend>
-        <label><input type="checkbox" id="flatfield_enabled" checked> Включено</label>
-        <label>Радиус фона <output id="o_flatfield_radius">60</output>
-          <input type="range" id="flatfield_radius" min="20" max="200" value="60">
-        </label>
-        <label>Сила <output id="o_flatfield_strength">0.80</output>
-          <input type="range" id="flatfield_strength" min="0" max="1" step="0.05" value="0.8">
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Баланс белого</legend>
-        <label><input type="checkbox" id="wb_enabled" checked> Включено</label>
-        <label>Сила <output id="o_wb_strength">1.00</output>
-          <input type="range" id="wb_strength" min="0" max="1" step="0.05" value="1">
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Экспозиция и контраст</legend>
-        <label>Яркость <output id="o_brightness">0</output>
-          <input type="range" id="brightness" min="-100" max="100" value="0">
-        </label>
-        <label>Контраст <output id="o_contrast">0</output>
-          <input type="range" id="contrast" min="-100" max="100" value="0">
-        </label>
-        <label>Gamma <output id="o_gamma">1.00</output>
-          <input type="range" id="gamma" min="0.3" max="3" step="0.05" value="1">
-        </label>
-        <label><input type="checkbox" id="clahe_enabled" checked> CLAHE (локальный контраст)</label>
-        <label>CLAHE clip <output id="o_clahe_clip">2.0</output>
-          <input type="range" id="clahe_clip" min="0.5" max="8" step="0.1" value="2">
-        </label>
-        <label>CLAHE сетка <output id="o_clahe_grid">8</output>
-          <input type="range" id="clahe_grid" min="2" max="16" value="8">
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Шумоподавление</legend>
-        <label><input type="checkbox" id="denoise_enabled" checked> Включено</label>
-        <label>Сила <output id="o_denoise_strength">6</output>
-          <input type="range" id="denoise_strength" min="0" max="20" value="6">
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Резкость</legend>
-        <label><input type="checkbox" id="sharpen_enabled" checked> Включено</label>
-        <label>Amount <output id="o_sharpen_amount">0.60</output>
-          <input type="range" id="sharpen_amount" min="0" max="2" step="0.05" value="0.6">
-        </label>
-        <label>Радиус <output id="o_sharpen_radius">1.2</output>
-          <input type="range" id="sharpen_radius" min="0.3" max="5" step="0.1" value="1.2">
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Выход</legend>
-        <label>Формат
-          <select id="outFmt">
-            <option value="tiff" selected>TIFF (без потерь)</option>
-            <option value="png">PNG (без потерь)</option>
-          </select>
-        </label>
-      </fieldset>
-
-      <div class="buttons">
-        <button id="btnReset">Сбросить параметры</button>
-        <button id="btnProcess" class="primary">Сохранить текущее</button>
-        <button id="btnBatch" class="primary">Пакетная обработка всех</button>
-        <div class="progress-bar"><div id="progressFill"></div></div>
-        <div class="links" id="resultLinks"></div>
-      </div>
-    </div>
-  </section>
-</main>
-
+<canvas id="c"></canvas>
 <script>
-'use strict';
+(() => {
+"use strict";
 
-// ================================================================
-// Состояние
-// ================================================================
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+let W = 0, H = 0;
+
+function resize(){
+  W = window.innerWidth;
+  H = window.innerHeight;
+  cvs.width  = Math.floor(W * DPR);
+  cvs.height = Math.floor(H * DPR);
+  cvs.style.width  = W + 'px';
+  cvs.style.height = H + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+/* ---------------- COLORS ---------------- */
+const CYAN   = '#00e5ff';
+const ORANGE = '#ff7a00';
+const RED    = '#ff3300';
+
+/* ---------------- STATE ---------------- */
 const state = {
-  files: [],       // {name, imageData, width, height, bitDepth}
-  currentIdx: -1,
-  previewRaf: null,
+  screen: 'menu',          // 'menu' | 'playing' | 'gameover'
+  player: {x:0,y:0,vx:0,vy:0,r:15,hp:100,maxHp:100,cd:0,hurt:0},
+  enemies: [],
+  discs: [],
+  particles: [],
+  score: 0,
+  wave: 0,
+  betweenWaves: true,
+  waveTimer: 0.8,
+  shake: 0,
+  t: 0,
+  best: +(localStorage.getItem('tron_best') || 0)
 };
 
-const $ = (id) => document.getElementById(id);
+/* ---------------- INPUT ---------------- */
+const input = {
+  move: {id:null, ox:0, oy:0, x:0, y:0, active:false},
+  aim:  {id:null, x:0, y:0, active:false}
+};
 
-// ================================================================
-// Загрузка изображений (TIFF через UTIF, остальное через Image/canvas)
-// ================================================================
-async function loadFile(file) {
-  const name = file.name.toLowerCase();
-  if (name.endsWith('.tif') || name.endsWith('.tiff')) {
-    return await loadTIFF(file);
+function pos(e){
+  const r = cvs.getBoundingClientRect();
+  return {x: e.clientX - r.left, y: e.clientY - r.top};
+}
+
+function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(_){} }
+
+function inRect(x, y, rx, ry, rw, rh){
+  return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+}
+
+cvs.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const {x, y} = pos(e);
+
+  // МЕНЮ — любой тап запускает игру (кнопка RUN — главный акцент)
+  if (state.screen === 'menu'){
+    startGame();
+    buzz(18);
+    return;
   }
-  return await loadRaster(file);
+
+  // GAME OVER — любой тап = рестарт
+  if (state.screen === 'gameover'){
+    startGame();
+    buzz(18);
+    return;
+  }
+
+  // ИГРА
+  if (x < W * 0.5) {
+    if (input.move.active) return;
+    input.move.id = e.pointerId;
+    input.move.ox = x; input.move.oy = y;
+    input.move.x = x;  input.move.y = y;
+    input.move.active = true;
+  } else {
+    if (input.aim.active) return;
+    input.aim.id = e.pointerId;
+    input.aim.x = x; input.aim.y = y;
+    input.aim.active = true;
+  }
+}, {passive:false});
+
+window.addEventListener('pointermove', e => {
+  if (e.pointerId === input.move.id) {
+    const {x,y} = pos(e);
+    input.move.x = x; input.move.y = y;
+  }
+  if (e.pointerId === input.aim.id) {
+    const {x,y} = pos(e);
+    input.aim.x = x; input.aim.y = y;
+  }
+}, {passive:false});
+
+function endPointer(e){
+  if (e.pointerId === input.move.id) {
+    input.move.active = false; input.move.id = null;
+  }
+  if (e.pointerId === input.aim.id) {
+    const {x,y} = pos(e);
+    throwDisc(x, y);
+    input.aim.active = false; input.aim.id = null;
+  }
+}
+window.addEventListener('pointerup', endPointer, {passive:false});
+window.addEventListener('pointercancel', endPointer, {passive:false});
+
+/* ---------------- ACTIONS ---------------- */
+function throwDisc(tx, ty){
+  const p = state.player;
+  if (state.screen !== 'playing' || p.cd > 0) return;
+  let dx = tx - p.x, dy = ty - p.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 4) return;
+  dx /= d; dy /= d;
+  const sp = 780;
+  state.discs.push({
+    x: p.x + dx * p.r, y: p.y + dy * p.r,
+    vx: dx * sp, vy: dy * sp,
+    r: 9, owner: 'player', life: 3.2, trail: []
+  });
+  p.cd = 0.32;
+  buzz(12);
 }
 
-async function loadTIFF(file) {
-  const buf = await file.arrayBuffer();
-  const ifds = UTIF.decode(buf);
-  if (!ifds.length) throw new Error('Пустой TIFF');
-  UTIF.decodeImage(buf, ifds[0]);
-  const w = ifds[0].width;
-  const h = ifds[0].height;
-  const rgba = UTIF.toRGBA8(ifds[0]); // Uint8ClampedArray, всегда 8 бит
-
-  // Пытаемся получить 16-битный канал, если доступен
-  const imgData = new ImageData(new Uint8ClampedArray(rgba), w, h);
-  return { name: file.name, imageData: imgData, width: w, height: h, bitDepth: 8 };
-}
-
-async function loadRaster(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = () => rej(new Error('Не удалось прочитать ' + file.name));
-      i.src = url;
+function burst(x, y, color, n, power){
+  power = power || 300;
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2;
+    const s = 60 + Math.random() * power;
+    state.particles.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life: 0.5 + Math.random() * 0.35,
+      max: 0.85,
+      color,
+      size: 1.5 + Math.random() * 3
     });
-    const c = document.createElement('canvas');
-    c.width = img.naturalWidth;
-    c.height = img.naturalHeight;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, c.width, c.height);
-    return { name: file.name, imageData, width: c.width, height: c.height, bitDepth: 8 };
-  } finally {
-    URL.revokeObjectURL(url);
   }
 }
 
-// ================================================================
-// Ядро обработки — всё на Float32Array [0..1] для точности
-// ================================================================
+/* ---------------- WAVES ---------------- */
+function spawnWave(){
+  const n = Math.min(1 + Math.floor(state.wave / 2), 5);
+  const p = state.player;
+  for (let i = 0; i < n; i++){
+    let x = 0, y = 0, tries = 0;
+    do {
+      const side = Math.floor(Math.random() * 4);
+      if (side === 0){ x = 60 + Math.random() * (W - 120); y = 70; }
+      else if (side === 1){ x = W - 70; y = 60 + Math.random() * (H - 120); }
+      else if (side === 2){ x = 60 + Math.random() * (W - 120); y = H - 70; }
+      else { x = 70; y = 60 + Math.random() * (H - 120); }
+      tries++;
+    } while (Math.hypot(x - p.x, y - p.y) < 220 && tries < 20);
 
-// ImageData → {r,g,b: Float32Array [0..1]} (для grayscale b=r=g)
-function imageDataToChannels(imageData) {
-  const { width: w, height: h, data } = imageData;
-  const n = w * h;
-  const r = new Float32Array(n);
-  const g = new Float32Array(n);
-  const b = new Float32Array(n);
-  for (let i = 0, j = 0; i < n; i++, j += 4) {
-    r[i] = data[j] / 255;
-    g[i] = data[j + 1] / 255;
-    b[i] = data[j + 2] / 255;
+    state.enemies.push({
+      x, y, r: 14,
+      hp: 100, maxHp: 100,
+      cd: 0.9 + Math.random() * 1.2,
+      hurt: 0,
+      speed: 72 + state.wave * 7,
+      strafeDir: Math.random() < 0.5 ? 1 : -1
+    });
   }
-  return { r, g, b, width: w, height: h };
 }
 
-// --- 1. Выравнивание освещения: оценка фона через box-blur + деление
-function flatField(ch, radius, strength) {
-  const { width: w, height: h } = ch;
-  const bg = [];
-  for (const name of ['r', 'g', 'b']) {
-    const src = ch[name];
-    const blurred = boxBlurFloat(src, w, h, radius);
-    // делим на фон, чтобы сгладить градиент освещения
-    const out = new Float32Array(src.length);
-    for (let i = 0; i < src.length; i++) {
-      const denom = blurred[i] > 1e-4 ? blurred[i] : 1e-4;
-      const corrected = src[i] / denom;
-      out[i] = src[i] + strength * (corrected - src[i]);
+/* ---------------- START / RESET ---------------- */
+function reset(){
+  const p = state.player;
+  p.x = W / 2;
+  p.y = H * 0.72;
+  p.vx = p.vy = 0;
+  p.hp = p.maxHp;
+  p.cd = 0;
+  p.hurt = 0;
+
+  state.enemies.length = 0;
+  state.discs.length = 0;
+  state.particles.length = 0;
+  state.score = 0;
+  state.wave = 0;
+  state.betweenWaves = true;
+  state.waveTimer = 0.8;
+  state.shake = 0;
+
+  input.move.active = false; input.move.id = null;
+  input.aim.active = false;  input.aim.id = null;
+}
+
+function startGame(){
+  reset();
+  state.screen = 'playing';
+}
+
+/* ---------------- UPDATE ---------------- */
+function update(dt){
+  state.t += dt;
+  state.shake *= Math.pow(0.001, dt);
+  if (state.shake < 0.3) state.shake = 0;
+
+  // частицы и тряска живут всегда (для красоты меню/гейм-овера)
+  for (let i = state.particles.length - 1; i >= 0; i--){
+    const pt = state.particles[i];
+    pt.x += pt.vx * dt;
+    pt.y += pt.vy * dt;
+    pt.vx *= Math.pow(0.08, dt);
+    pt.vy *= Math.pow(0.08, dt);
+    pt.life -= dt;
+    if (pt.life <= 0) state.particles.splice(i, 1);
+  }
+
+  if (state.screen !== 'playing') return;
+
+  const p = state.player;
+
+  /* ---- player movement ---- */
+  let mvx = 0, mvy = 0;
+  if (input.move.active){
+    const dx = input.move.x - input.move.ox;
+    const dy = input.move.y - input.move.oy;
+    const d = Math.hypot(dx, dy);
+    if (d > 7){
+      const m = Math.min(d / 65, 1);
+      mvx = (dx / d) * m;
+      mvy = (dy / d) * m;
     }
-    bg.push(out);
   }
-  // нормировка в [0..1] по 99-му перцентилю
-  const all = [];
-  for (const a of bg) all.push(a);
-  const flat = mergeAndNormalize(bg[0], bg[1], bg[2]);
-  return { ...ch, r: flat.r, g: flat.g, b: flat.b };
-}
+  const SPD = 340;
+  const lerp = Math.min(1, dt * 15);
+  p.vx += (mvx * SPD - p.vx) * lerp;
+  p.vy += (mvy * SPD - p.vy) * lerp;
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
 
-function boxBlurFloat(src, w, h, radius) {
-  // Двухпроходный box blur (горизонтально + вертикально)
-  const tmp = new Float32Array(src.length);
-  const dst = new Float32Array(src.length);
-  const win = radius * 2 + 1;
+  if (p.x < p.r){ p.x = p.r; p.vx = 0; }
+  if (p.x > W - p.r){ p.x = W - p.r; p.vx = 0; }
+  if (p.y < p.r){ p.y = p.r; p.vy = 0; }
+  if (p.y > H - p.r){ p.y = H - p.r; p.vy = 0; }
 
-  // горизонтальный проход
-  for (let y = 0; y < h; y++) {
-    const row = y * w;
-    let sum = 0;
-    for (let x = -radius; x <= radius; x++) {
-      const xx = Math.min(w - 1, Math.max(0, x));
-      sum += src[row + xx];
-    }
-    for (let x = 0; x < w; x++) {
-      tmp[row + x] = sum / win;
-      const xOut = Math.min(w - 1, Math.max(0, x - radius));
-      const xIn = Math.min(w - 1, Math.max(0, x + radius + 1));
-      sum += src[row + xIn] - src[row + xOut];
-    }
-  }
+  p.cd -= dt;
+  p.hurt = Math.max(0, p.hurt - dt * 3);
 
-  // вертикальный проход
-  for (let x = 0; x < w; x++) {
-    let sum = 0;
-    for (let y = -radius; y <= radius; y++) {
-      const yy = Math.min(h - 1, Math.max(0, y));
-      sum += tmp[yy * w + x];
-    }
-    for (let y = 0; y < h; y++) {
-      dst[y * w + x] = sum / win;
-      const yOut = Math.min(h - 1, Math.max(0, y - radius));
-      const yIn = Math.min(h - 1, Math.max(0, y + radius + 1));
-      sum += tmp[yIn * w + x] - tmp[yOut * w + x];
-    }
-  }
-  return dst;
-}
+  /* ---- discs ---- */
+  for (let i = state.discs.length - 1; i >= 0; i--){
+    const d = state.discs[i];
 
-function mergeAndNormalize(r, g, b) {
-  const n = r.length;
-  // оценка 0.5 и 99.5 перцентилей по яркости (для устойчивости к выбросам)
-  const lum = new Float32Array(n);
-  for (let i = 0; i < n; i++) lum[i] = 0.299 * r[i] + 0.587 * g[i] + 0.114 * b[i];
-  const sorted = Float32Array.from(lum).sort();
-  const lo = sorted[Math.floor(n * 0.005)];
-  const hi = sorted[Math.floor(n * 0.995)];
-  const range = hi - lo > 1e-5 ? hi - lo : 1;
-  const scale = (v) => Math.max(0, Math.min(1, (v - lo) / range));
-  const ro = new Float32Array(n), go = new Float32Array(n), bo = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    ro[i] = scale(r[i]); go[i] = scale(g[i]); bo[i] = scale(b[i]);
-  }
-  return { r: ro, g: go, b: bo };
-}
+    d.trail.push({x: d.x, y: d.y});
+    if (d.trail.length > 9) d.trail.shift();
 
-// --- 2. Баланс белого (Gray-World)
-function grayWorld(ch, strength) {
-  const n = ch.r.length;
-  let mr = 0, mg = 0, mb = 0;
-  for (let i = 0; i < n; i++) { mr += ch.r[i]; mg += ch.g[i]; mb += ch.b[i]; }
-  mr /= n; mg /= n; mb /= n;
-  const target = (mr + mg + mb) / 3;
-  const gr = 1 + strength * (target / (mr + 1e-6) - 1);
-  const gg = 1 + strength * (target / (mg + 1e-6) - 1);
-  const gb = 1 + strength * (target / (mb + 1e-6) - 1);
-  const r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    r[i] = Math.min(1, ch.r[i] * gr);
-    g[i] = Math.min(1, ch.g[i] * gg);
-    b[i] = Math.min(1, ch.b[i] * gb);
-  }
-  return { ...ch, r, g, b };
-}
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.life -= dt;
 
-// --- 3. Яркость/контраст/gamma
-function adjustBrightnessContrast(ch, brightness, contrast, gamma) {
-  const n = ch.r.length;
-  const bShift = brightness / 100 * 0.5;
-  const cScale = 1 + contrast / 100;
-  const g = 1 / Math.max(0.05, gamma);
-  const lut = new Float32Array(1024);
-  for (let i = 0; i < 1024; i++) {
-    let v = i / 1023;
-    v = (v - 0.5) * cScale + 0.5 + bShift;
-    v = Math.max(0, Math.min(1, v));
-    v = Math.pow(v, g);
-    lut[i] = v;
-  }
-  const apply = (src) => {
-    const out = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      const idx = Math.min(1023, Math.max(0, (src[i] * 1023) | 0));
-      out[i] = lut[idx];
-    }
-    return out;
-  };
-  return { ...ch, r: apply(ch.r), g: apply(ch.g), b: apply(ch.b) };
-}
+    if (d.x < d.r){ d.x = d.r; d.vx = Math.abs(d.vx); }
+    if (d.x > W - d.r){ d.x = W - d.r; d.vx = -Math.abs(d.vx); }
+    if (d.y < d.r){ d.y = d.r; d.vy = Math.abs(d.vy); }
+    if (d.y > H - d.r){ d.y = H - d.r; d.vy = -Math.abs(d.vy); }
 
-// --- 4. CLAHE на яркостном канале LAB
-function applyCLAHE(ch, clip, grid) {
-  const { width: w, height: h } = ch;
-  const n = w * h;
-  // в LAB — только L
-  const L = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    L[i] = 0.299 * ch.r[i] + 0.587 * ch.g[i] + 0.114 * ch.b[i];
-  }
-  const tileW = Math.max(2, Math.ceil(w / grid));
-  const tileH = Math.max(2, Math.ceil(h / grid));
-  const tilesX = Math.ceil(w / tileW);
-  const tilesY = Math.ceil(h / tileH);
+    if (d.life <= 0){ state.discs.splice(i, 1); continue; }
 
-  const luts = new Array(tilesX * tilesY);
-  for (let ty = 0; ty < tilesY; ty++) {
-    for (let tx = 0; tx < tilesX; tx++) {
-      const x0 = tx * tileW, y0 = ty * tileH;
-      const x1 = Math.min(w, x0 + tileW), y1 = Math.min(h, y0 + tileH);
-      const hist = new Uint32Array(256);
-      let count = 0;
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const v = Math.min(255, Math.max(0, (L[y * w + x] * 255) | 0));
-          hist[v]++; count++;
+    if (d.owner === 'player'){
+      let hit = false;
+      for (let j = state.enemies.length - 1; j >= 0; j--){
+        const e = state.enemies[j];
+        if (Math.hypot(d.x - e.x, d.y - e.y) < d.r + e.r){
+          e.hp -= 34;
+          e.hurt = 1;
+          state.score += 10;
+          state.shake = Math.max(state.shake, 7);
+          burst(d.x, d.y, CYAN, 16, 340);
+          buzz(22);
+          hit = true;
+
+          if (e.hp <= 0){
+            burst(e.x, e.y, ORANGE, 34, 460);
+            state.enemies.splice(j, 1);
+            state.score += 100;
+            state.shake = Math.max(state.shake, 14);
+            buzz([20, 40, 30]);
+          }
+          break;
         }
       }
-      // клиппинг гистограммы
-      const clipLimit = Math.max(1, Math.floor(clip * count / 256));
-      let excess = 0;
-      for (let i = 0; i < 256; i++) {
-        if (hist[i] > clipLimit) { excess += hist[i] - clipLimit; hist[i] = clipLimit; }
-      }
-      const bonus = Math.floor(excess / 256);
-      for (let i = 0; i < 256; i++) hist[i] += bonus;
+      if (hit) state.discs.splice(i, 1);
+    } else {
+      if (Math.hypot(d.x - p.x, d.y - p.y) < d.r + p.r){
+        p.hp -= 12;
+        p.hurt = 1;
+        state.shake = Math.max(state.shake, 11);
+        burst(d.x, d.y, RED, 18, 320);
+        buzz(45);
+        state.discs.splice(i, 1);
 
-      // кумулятивная функция распределения
-      const cdf = new Uint32Array(256);
-      let acc = 0;
-      for (let i = 0; i < 256; i++) { acc += hist[i]; cdf[i] = acc; }
-      const cdfMin = cdf.find(v => v > 0) || 0;
-      const lut = new Float32Array(256);
-      const denom = count - cdfMin || 1;
-      for (let i = 0; i < 256; i++) {
-        lut[i] = Math.max(0, Math.min(1, (cdf[i] - cdfMin) / denom));
+        if (p.hp <= 0){
+          p.hp = 0;
+          state.screen = 'gameover';
+          state.shake = 26;
+          burst(p.x, p.y, CYAN, 60, 520);
+          if (state.score > state.best){
+            state.best = state.score;
+            localStorage.setItem('tron_best', String(state.best));
+          }
+        }
       }
-      luts[ty * tilesX + tx] = lut;
     }
   }
 
-  // билинейная интерполяция LUT между плитками
-  const Lnew = new Float32Array(n);
-  for (let y = 0; y < h; y++) {
-    const fy = (y / tileH) - 0.5;
-    const ty0 = Math.max(0, Math.floor(fy));
-    const ty1 = Math.min(tilesY - 1, ty0 + 1);
-    const wy = Math.max(0, Math.min(1, fy - ty0));
-    for (let x = 0; x < w; x++) {
-      const fx = (x / tileW) - 0.5;
-      const tx0 = Math.max(0, Math.floor(fx));
-      const tx1 = Math.min(tilesX - 1, tx0 + 1);
-      const wx = Math.max(0, Math.min(1, fx - tx0));
-      const v = Math.min(255, Math.max(0, (L[y * w + x] * 255) | 0));
-      const v00 = luts[ty0 * tilesX + tx0][v];
-      const v01 = luts[ty0 * tilesX + tx1][v];
-      const v10 = luts[ty1 * tilesX + tx0][v];
-      const v11 = luts[ty1 * tilesX + tx1][v];
-      const top = v00 * (1 - wx) + v01 * wx;
-      const bot = v10 * (1 - wx) + v11 * wx;
-      Lnew[y * w + x] = top * (1 - wy) + bot * wy;
+  /* ---- enemies ---- */
+  for (const e of state.enemies){
+    e.hurt = Math.max(0, e.hurt - dt * 3);
+    e.cd -= dt;
+
+    const dx = p.x - e.x, dy = p.y - e.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const nx = dx / dist, ny = dy / dist;
+    const sp = e.speed;
+
+    if (dist > 250){
+      e.x += nx * sp * dt;
+      e.y += ny * sp * dt;
+    } else if (dist < 165){
+      e.x -= nx * sp * dt;
+      e.y -= ny * sp * dt;
+    } else {
+      e.x += -ny * sp * dt * 0.8 * e.strafeDir;
+      e.y += nx * sp * dt * 0.8 * e.strafeDir;
+    }
+
+    if (e.x < e.r) e.x = e.r;
+    if (e.x > W - e.r) e.x = W - e.r;
+    if (e.y < e.r) e.y = e.r;
+    if (e.y > H - e.r) e.y = H - e.r;
+
+    if (e.cd <= 0 && dist < 620){
+      const err = 0.14;
+      const a = Math.atan2(ny, nx) + (Math.random() - 0.5) * err * 2;
+      const dsp = 470 + state.wave * 10;
+      state.discs.push({
+        x: e.x + Math.cos(a) * (e.r + 2),
+        y: e.y + Math.sin(a) * (e.r + 2),
+        vx: Math.cos(a) * dsp,
+        vy: Math.sin(a) * dsp,
+        r: 9, owner: 'enemy', life: 3.2, trail: []
+      });
+      e.cd = Math.max(0.75, 1.45 - state.wave * 0.05) + Math.random() * 0.8;
     }
   }
 
-  // применяем изменение L к RGB пропорционально
-  const scaleR = new Float32Array(n), scaleG = new Float32Array(n), scaleB = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const ratio = Lnew[i] / (L[i] + 1e-5);
-    scaleR[i] = Math.min(1, ch.r[i] * ratio);
-    scaleG[i] = Math.min(1, ch.g[i] * ratio);
-    scaleB[i] = Math.min(1, ch.b[i] * ratio);
+  /* ---- waves ---- */
+  if (state.enemies.length === 0 && !state.betweenWaves){
+    state.betweenWaves = true;
+    state.waveTimer = 1.4;
   }
-  return { ...ch, r: scaleR, g: scaleG, b: scaleB };
-}
-
-// --- 5. Шумоподавление: быстрый bilateral-подобный через gaussian + edge-preserving mix
-function denoise(ch, strength) {
-  if (strength <= 0) return ch;
-  const sigma = Math.max(0.5, strength / 2);
-  const r = gaussianBlur(ch.r, ch.width, ch.height, sigma);
-  const g = gaussianBlur(ch.g, ch.width, ch.height, sigma);
-  const b = gaussianBlur(ch.b, ch.width, ch.height, sigma);
-  return { ...ch, r, g, b };
-}
-
-function gaussianBlur(src, w, h, sigma) {
-  // аппроксимация: три box blur подряд ≈ gaussian
-  const radius = Math.max(1, Math.round(sigma * 1.5));
-  let tmp = src;
-  for (let i = 0; i < 3; i++) {
-    tmp = boxBlurFloat(tmp, w, h, radius);
+  if (state.betweenWaves){
+    state.waveTimer -= dt;
+    if (state.waveTimer <= 0){
+      state.betweenWaves = false;
+      state.wave++;
+      spawnWave();
+    }
   }
-  return tmp;
 }
 
-// --- 6. Unsharp mask
-function unsharpMask(ch, amount, radius) {
-  if (amount <= 0) return ch;
-  const { width: w, height: h } = ch;
-  const blurR = gaussianBlur(ch.r, w, h, radius);
-  const blurG = gaussianBlur(ch.g, w, h, radius);
-  const blurB = gaussianBlur(ch.b, w, h, radius);
-  const n = ch.r.length;
-  const r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    r[i] = Math.max(0, Math.min(1, ch.r[i] + amount * (ch.r[i] - blurR[i])));
-    g[i] = Math.max(0, Math.min(1, ch.g[i] + amount * (ch.g[i] - blurG[i])));
-    b[i] = Math.max(0, Math.min(1, ch.b[i] + amount * (ch.b[i] - blurB[i])));
-  }
-  return { ...ch, r, g, b };
-}
-
-// ================================================================
-// Полный конвейер
-// ================================================================
-function collectParams() {
-  const num = (id) => parseFloat($(id).value);
-  const bool = (id) => $(id).checked;
-  return {
-    flatfield_enabled: bool('flatfield_enabled'),
-    flatfield_radius: num('flatfield_radius'),
-    flatfield_strength: num('flatfield_strength'),
-    wb_enabled: bool('wb_enabled'),
-    wb_strength: num('wb_strength'),
-    brightness: num('brightness'),
-    contrast: num('contrast'),
-    gamma: num('gamma'),
-    clahe_enabled: bool('clahe_enabled'),
-    clahe_clip: num('clahe_clip'),
-    clahe_grid: num('clahe_grid'),
-    denoise_enabled: bool('denoise_enabled'),
-    denoise_strength: num('denoise_strength'),
-    sharpen_enabled: bool('sharpen_enabled'),
-    sharpen_amount: num('sharpen_amount'),
-    sharpen_radius: num('sharpen_radius'),
-  };
-}
-
-function runPipeline(imageData, params) {
-  let ch = imageDataToChannels(imageData);
-  if (params.flatfield_enabled) ch = flatField(ch, params.flatfield_radius, params.flatfield_strength);
-  if (params.wb_enabled) ch = grayWorld(ch, params.wb_strength);
-  ch = adjustBrightnessContrast(ch, params.brightness, params.contrast, params.gamma);
-  if (params.clahe_enabled) ch = applyCLAHE(ch, params.clahe_clip, params.clahe_grid);
-  if (params.denoise_enabled) ch = denoise(ch, params.denoise_strength);
-  if (params.sharpen_enabled) ch = unsharpMask(ch, params.sharpen_amount, params.sharpen_radius);
-  return channelsToImageData(ch);
-}
-
-function channelsToImageData(ch) {
-  const { r, g, b, width: w, height: h } = ch;
-  const out = new ImageData(w, h);
-  const d = out.data;
-  for (let i = 0, j = 0; i < r.length; i++, j += 4) {
-    d[j]     = Math.max(0, Math.min(255, (r[i] * 255 + 0.5) | 0));
-    d[j + 1] = Math.max(0, Math.min(255, (g[i] * 255 + 0.5) | 0));
-    d[j + 2] = Math.max(0, Math.min(255, (b[i] * 255 + 0.5) | 0));
-    d[j + 3] = 255;
-  }
-  return out;
-}
-
-// ================================================================
-// Превью «до/после» на canvas
-// ================================================================
-function drawPreview(original, processed, splitRatio) {
-  const canvas = $('previewCanvas');
-  const box = canvas.parentElement;
-  const maxW = box.clientWidth - 4;
-  const maxH = box.clientHeight - 4;
-
-  const scale = Math.min(maxW / original.width, maxH / original.height, 1);
-  const w = Math.max(1, Math.floor(original.width * scale));
-  const h = Math.max(1, Math.floor(original.height * scale));
-
-  canvas.width = w;
-  canvas.height = h;
-  canvas.style.display = 'block';
-
-  const ctx = canvas.getContext('2d');
-
-  // оригинал уменьшенный (для скорости — рисуем только «до»)
-  const origCanvas = new OffscreenCanvas(original.width, original.height);
-  origCanvas.getContext('2d').putImageData(original, 0, 0);
-  const procCanvas = new OffscreenCanvas(processed.width, processed.height);
-  procCanvas.getContext('2d').putImageData(processed, 0, 0);
-
-  const splitX = Math.floor(w * splitRatio);
-  ctx.drawImage(origCanvas, 0, 0, original.width, original.height, 0, 0, w, h);
-  ctx.save();
+/* ---------------- RENDER HELPERS ---------------- */
+function roundRect(x, y, w, h, r){
   ctx.beginPath();
-  ctx.rect(splitX, 0, w - splitX, h);
-  ctx.clip();
-  ctx.drawImage(procCanvas, 0, 0, processed.width, processed.height,
-               0, 0, w, h);
-  ctx.restore();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
 
-  // линия и подписи
-  ctx.strokeStyle = '#ffd166';
-  ctx.lineWidth = 2;
+function drawGrid(){
+  const gs = 58;
+  const off = (state.t * 14) % gs;
+  ctx.strokeStyle = 'rgba(0,140,190,0.16)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(splitX, 0);
-  ctx.lineTo(splitX, h);
+  for (let x = -off; x < W + gs; x += gs){ ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  for (let y = -off; y < H + gs; y += gs){ ctx.moveTo(0, y); ctx.lineTo(W, y); }
   ctx.stroke();
 
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillStyle = '#ffd166';
-  ctx.fillText('BEFORE', 10, 22);
-  ctx.fillText('AFTER', splitX + 10, 22);
-
-  $('placeholder').classList.add('hidden');
+  const g = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.7);
+  g.addColorStop(0, 'rgba(0,80,120,0.10)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
 }
 
-// ================================================================
-// Обновление превью с debounce
-// ================================================================
-let debounceTimer = null;
-function schedulePreview() {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(updatePreview, 250);
+function drawArena(){
+  ctx.strokeStyle = CYAN;
+  ctx.shadowBlur = 22;
+  ctx.shadowColor = CYAN;
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(2, 2, W - 4, H - 4);
+  ctx.shadowBlur = 0;
 }
 
-function updatePreview() {
-  if (state.currentIdx < 0) return;
-  const file = state.files[state.currentIdx];
-  $('spinner').classList.remove('hidden');
+function drawPlayer(){
+  const p = state.player;
+  const col = p.hurt > 0 ? '#ffffff' : CYAN;
 
-  // асинхронно, чтобы UI не подвисал
-  requestAnimationFrame(() => {
-    try {
-      const params = collectParams();
+  ctx.shadowBlur = 28;
+  ctx.shadowColor = CYAN;
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
 
-      // уменьшаем для скорости предпросмотра
-      const maxSide = 900;
-      const scale = Math.min(1, maxSide / Math.max(file.width, file.height));
-      let srcImageData = file.imageData;
-      if (scale < 1) {
-        const c = new OffscreenCanvas(file.width, file.height);
-        c.getContext('2d').putImageData(file.imageData, 0, 0);
-        const sc = new OffscreenCanvas(Math.floor(file.width * scale), Math.floor(file.height * scale));
-        const sctx = sc.getContext('2d');
-        sctx.drawImage(c, 0, 0, sc.width, sc.height);
-        srcImageData = sctx.getImageData(0, 0, sc.width, sc.height);
-      }
+  ctx.fillStyle = '#001820';
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 0.5, 0, Math.PI * 2); ctx.fill();
 
-      const processed = runPipeline(srcImageData, params);
-      const splitRatio = parseInt($('splitSlider').value, 10) / 100;
-      drawPreview(srcImageData, processed, splitRatio);
-    } catch (e) {
-      console.error(e);
-      alert('Ошибка обработки: ' + e.message);
-    } finally {
-      $('spinner').classList.add('hidden');
+  ctx.strokeStyle = CYAN;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.55 + 0.25 * Math.sin(state.t * 6);
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 7, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  if (p.cd > 0){
+    ctx.strokeStyle = 'rgba(0,229,255,0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r + 12, -Math.PI/2, -Math.PI/2 + (p.cd / 0.32) * Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawEnemy(e){
+  const col = e.hurt > 0 ? '#ffffff' : ORANGE;
+
+  ctx.shadowBlur = 22;
+  ctx.shadowColor = ORANGE;
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#201000';
+  ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.45, 0, Math.PI * 2); ctx.fill();
+
+  const w = 32;
+  const hx = e.x - w / 2, hy = e.y - e.r - 14;
+  ctx.fillStyle = 'rgba(255,120,0,0.25)';
+  ctx.fillRect(hx, hy, w, 4);
+  ctx.fillStyle = ORANGE;
+  ctx.fillRect(hx, hy, w * Math.max(0, e.hp) / e.maxHp, 4);
+}
+
+function drawDisc(d){
+  const col = d.owner === 'player' ? CYAN : RED;
+
+  for (let i = 0; i < d.trail.length; i++){
+    const t = d.trail[i];
+    const k = i / d.trail.length;
+    ctx.globalAlpha = k * 0.45;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, d.r * k * 0.95, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.shadowBlur = 26;
+  ctx.shadowColor = col;
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.36, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawParticles(){
+  for (const pt of state.particles){
+    const k = Math.max(0, pt.life / pt.max);
+    ctx.globalAlpha = k;
+    ctx.fillStyle = pt.color;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, pt.size * k, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawControls(){
+  const p = state.player;
+
+  if (input.move.active){
+    ctx.strokeStyle = 'rgba(0,229,255,0.28)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(input.move.ox, input.move.oy, 52, 0, Math.PI * 2); ctx.stroke();
+
+    let dx = input.move.x - input.move.ox;
+    let dy = input.move.y - input.move.oy;
+    const d = Math.hypot(dx, dy);
+    if (d > 52){ dx = dx / d * 52; dy = dy / d * 52; }
+
+    ctx.fillStyle = 'rgba(0,229,255,0.35)';
+    ctx.shadowBlur = 18; ctx.shadowColor = CYAN;
+    ctx.beginPath(); ctx.arc(input.move.ox + dx, input.move.oy + dy, 24, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  if (input.aim.active){
+    ctx.strokeStyle = 'rgba(0,229,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 7]);
+    ctx.lineDashOffset = -state.t * 40;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(input.aim.x, input.aim.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = CYAN;
+    ctx.shadowBlur = 15; ctx.shadowColor = CYAN;
+    ctx.beginPath(); ctx.arc(input.aim.x, input.aim.y, 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(input.aim.x, input.aim.y, 3, 0, Math.PI * 2); ctx.fillStyle = CYAN; ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+function drawUI(){
+  const p = state.player;
+  const bw = Math.min(W * 0.42, 210), bh = 13;
+  const x0 = 16, y0 = 16;
+
+  ctx.fillStyle = 'rgba(0,229,255,0.15)';
+  ctx.fillRect(x0, y0, bw, bh);
+
+  ctx.fillStyle = p.hurt > 0 ? '#fff' : CYAN;
+  ctx.shadowBlur = 16; ctx.shadowColor = CYAN;
+  ctx.fillRect(x0, y0, bw * Math.max(0, p.hp) / p.maxHp, bh);
+  ctx.shadowBlur = 0;
+
+  ctx.strokeStyle = CYAN;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x0, y0, bw, bh);
+
+  ctx.fillStyle = CYAN;
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('HP ' + Math.ceil(p.hp), x0 + 4, y0 + bh + 6);
+
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 17px monospace';
+  ctx.shadowBlur = 12; ctx.shadowColor = CYAN;
+  ctx.fillText('SCORE ' + state.score, W - 16, 16);
+  ctx.font = 'bold 15px monospace';
+  ctx.fillText('WAVE ' + Math.max(1, state.wave), W - 16, 40);
+  ctx.shadowBlur = 0;
+
+  if (state.betweenWaves && state.wave > 0){
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,229,255,' + (0.4 + 0.4 * Math.sin(state.t * 8)) + ')';
+    ctx.font = 'bold 26px monospace';
+    ctx.shadowBlur = 25; ctx.shadowColor = CYAN;
+    ctx.fillText('WAVE ' + (state.wave + 1), W / 2, H * 0.42);
+    ctx.shadowBlur = 0;
+  }
+}
+
+/* ---------------- MENU SCREEN ---------------- */
+function drawMenu(){
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Заголовок
+  const titleSize = Math.min(64, W * 0.17);
+  ctx.font = 'bold ' + titleSize + 'px monospace';
+  ctx.fillStyle = CYAN;
+  ctx.shadowBlur = 40; ctx.shadowColor = CYAN;
+  ctx.fillText('TRON', W / 2, H * 0.24);
+  ctx.shadowBlur = 0;
+
+  ctx.font = 'bold ' + Math.min(16, W * 0.042) + 'px monospace';
+  ctx.fillStyle = 'rgba(0,229,255,0.75)';
+  ctx.fillText('D I S C   B A T T L E', W / 2, H * 0.24 + titleSize * 0.8);
+
+  // Вращающийся диск
+  const cx = W / 2, cy = H * 0.42, rr = Math.min(28, W * 0.07);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(state.t * 1.6);
+  ctx.shadowBlur = 30; ctx.shadowColor = CYAN;
+  ctx.fillStyle = CYAN;
+  ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(0, 0, rr * 0.38, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = CYAN;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, rr + 10, 0, Math.PI * 1.4); ctx.stroke();
+  ctx.restore();
+  ctx.shadowBlur = 0;
+
+  // КНОПКА RUN
+  const bw = Math.min(W * 0.66, 320);
+  const bh = 82;
+  const bx = (W - bw) / 2;
+  const by = H * 0.58;
+
+  const pulse = 0.5 + 0.5 * Math.sin(state.t * 3.2);
+
+  // внешнее свечение
+  ctx.shadowBlur = 30 + 25 * pulse;
+  ctx.shadowColor = CYAN;
+
+  // градиент кнопки
+  const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
+  grd.addColorStop(0, 'rgba(0,229,255,' + (0.28 + 0.18 * pulse) + ')');
+  grd.addColorStop(1, 'rgba(0,120,170,' + (0.30 + 0.15 * pulse) + ')');
+  ctx.fillStyle = grd;
+  roundRect(bx, by, bw, bh, 18);
+  ctx.fill();
+
+  // рамка
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = CYAN;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // текст RUN
+  ctx.fillStyle = '#eaffff';
+  ctx.font = 'bold 40px monospace';
+  ctx.shadowBlur = 22; ctx.shadowColor = CYAN;
+  ctx.fillText('RUN', W / 2, by + bh / 2 - 1);
+  ctx.shadowBlur = 0;
+
+  // треугольник ▶
+  ctx.fillStyle = CYAN;
+  ctx.beginPath();
+  const tx = bx + bw - 44, ty = by + bh / 2;
+  ctx.moveTo(tx, ty - 12);
+  ctx.lineTo(tx + 18, ty);
+  ctx.lineTo(tx, ty + 12);
+  ctx.closePath();
+  ctx.fill();
+
+  // подсказка управления
+  ctx.fillStyle = 'rgba(0,229,255,0.55)';
+  ctx.font = '13px monospace';
+  ctx.fillText('СЛЕВА — ДВИЖЕНИЕ', W / 2, H * 0.80);
+  ctx.fillText('СПРАВА — ПРИЦЕЛ И БРОСОК', W / 2, H * 0.80 + 20);
+
+  // рекорд
+  if (state.best > 0){
+    ctx.fillStyle = 'rgba(0,229,255,0.45)';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText('BEST: ' + state.best, W / 2, H - 32);
+  }
+
+  // мерцающая подсказка
+  ctx.globalAlpha = 0.4 + 0.4 * Math.sin(state.t * 4);
+  ctx.fillStyle = 'rgba(0,229,255,0.6)';
+  ctx.font = '11px monospace';
+  ctx.fillText('нажми кнопку, чтобы начать', W / 2, by + bh + 26);
+  ctx.globalAlpha = 1;
+}
+
+/* ---------------- GAME OVER ---------------- */
+function drawGameOver(){
+  ctx.fillStyle = 'rgba(0,0,0,0.80)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = CYAN;
+  ctx.shadowBlur = 35; ctx.shadowColor = CYAN;
+  ctx.font = 'bold ' + Math.min(46, W * 0.11) + 'px monospace';
+  ctx.fillText('DEREZZED', W / 2, H * 0.32);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#9ff';
+  ctx.font = 'bold 22px monospace';
+  ctx.fillText('SCORE: ' + state.score, W / 2, H * 0.42);
+
+  ctx.fillStyle = 'rgba(0,229,255,0.7)';
+  ctx.font = '16px monospace';
+  ctx.fillText('BEST: ' + state.best, W / 2, H * 0.47);
+
+  // кнопка RUN AGAIN
+  const bw = Math.min(W * 0.66, 320);
+  const bh = 74;
+  const bx = (W - bw) / 2;
+  const by = H * 0.58;
+  const pulse = 0.5 + 0.5 * Math.sin(state.t * 3.2);
+
+  ctx.shadowBlur = 28 + 22 * pulse;
+  ctx.shadowColor = CYAN;
+  const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
+  grd.addColorStop(0, 'rgba(0,229,255,' + (0.26 + 0.16 * pulse) + ')');
+  grd.addColorStop(1, 'rgba(0,120,170,' + (0.28 + 0.14 * pulse) + ')');
+  ctx.fillStyle = grd;
+  roundRect(bx, by, bw, bh, 18);
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = CYAN;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#eaffff';
+  ctx.font = 'bold 26px monospace';
+  ctx.shadowBlur = 20; ctx.shadowColor = CYAN;
+  ctx.fillText('RUN AGAIN', W / 2, by + bh / 2);
+  ctx.shadowBlur = 0;
+
+  ctx.globalAlpha = 0.4 + 0.4 * Math.sin(state.t * 4);
+  ctx.fillStyle = 'rgba(0,229,255,0.6)';
+  ctx.font = '11px monospace';
+  ctx.fillText('нажми в любом месте', W / 2, by + bh + 24);
+  ctx.globalAlpha = 1;
+}
+
+/* ---------------- RENDER ---------------- */
+function render(){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#000308';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  if (state.shake > 0){
+    ctx.translate(
+      (Math.random() - 0.5) * state.shake,
+      (Math.random() - 0.5) * state.shake
+    );
+  }
+
+  drawGrid();
+  drawArena();
+  drawParticles();
+
+  if (state.screen === 'playing' || state.screen === 'gameover'){
+    for (const d of state.discs) drawDisc(d);
+    for (const e of state.enemies) drawEnemy(e);
+    if (state.screen === 'playing'){
+      drawPlayer();
+      drawControls();
     }
-  });
-}
-
-// ================================================================
-// Список файлов
-// ================================================================
-function renderFileList() {
-  const ul = $('fileList');
-  ul.innerHTML = '';
-  state.files.forEach((f, i) => {
-    const li = document.createElement('li');
-    li.textContent = f.name;
-    li.title = `${f.name} · ${f.width}×${f.height}`;
-    if (i === state.currentIdx) li.classList.add('active');
-    li.onclick = () => selectFile(i);
-    ul.appendChild(li);
-  });
-}
-
-function selectFile(idx) {
-  state.currentIdx = idx;
-  renderFileList();
-  const f = state.files[idx];
-  $('fileInfo').textContent = `${f.width} × ${f.height} · ${f.bitDepth} бит`;
-  updatePreview();
-}
-
-async function addFiles(fileList) {
-  for (const f of fileList) {
-    try {
-      const loaded = await loadFile(f);
-      state.files.push(loaded);
-    } catch (e) {
-      console.error(e);
-      alert(`Не удалось загрузить ${f.name}: ${e.message}`);
-    }
   }
-  renderFileList();
-  if (state.currentIdx < 0 && state.files.length) selectFile(0);
-}
 
-// ================================================================
-// Экспорт
-// ================================================================
-async function processCurrent() {
-  if (state.currentIdx < 0) return alert('Выберите файл');
-  const file = state.files[state.currentIdx];
-  $('spinner').classList.remove('hidden');
-  $('spinner').textContent = 'Сохранение…';
+  ctx.restore();
 
-  await new Promise(r => setTimeout(r, 30));
-  try {
-    const params = collectParams();
-    const processed = runPipeline(file.imageData, params);
-    const fmt = $('outFmt').value;
-    const blob = await exportImage(processed, fmt);
-    downloadBlob(blob, replaceExt(file.name, fmt === 'tiff' ? '.tif' : '.png'));
-  } catch (e) {
-    alert('Ошибка: ' + e.message);
-  } finally {
-    $('spinner').classList.add('hidden');
-    $('spinner').textContent = 'Обработка…';
+  if (state.screen === 'playing'){
+    drawUI();
+  } else if (state.screen === 'menu'){
+    drawMenu();
+  } else if (state.screen === 'gameover'){
+    drawGameOver();
   }
 }
 
-async function runBatch() {
-  if (!state.files.length) return alert('Нет файлов');
-  if (typeof JSZip === 'undefined') {
-    await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
-  }
-  const zip = new JSZip();
-  const params = collectParams();
-  const fmt = $('outFmt').value;
-  const fill = $('progressFill');
+/* ---------------- LOOP ---------------- */
+let last = performance.now();
+function loop(now){
+  let dt = (now - last) / 1000;
+  last = now;
+  if (dt > 0.05) dt = 0.05;
+  if (dt < 0) dt = 0;
 
-  $('spinner').classList.remove('hidden');
-  $('spinner').textContent = 'Пакетная обработка…';
-
-  for (let i = 0; i < state.files.length; i++) {
-    const f = state.files[i];
-    fill.style.width = `${Math.round((i / state.files.length) * 100)}%`;
-    await new Promise(r => setTimeout(r, 10));
-    try {
-      const processed = runPipeline(f.imageData, params);
-      const blob = await exportImage(processed, fmt);
-      zip.file(replaceExt(f.name, fmt === 'tiff' ? '.tif' : '.png'), blob);
-    } catch (e) {
-      zip.file(replaceExt(f.name, '.error.txt'), String(e));
-    }
-  }
-  fill.style.width = '100%';
-  const out = await zip.generateAsync({ type: 'blob' });
-  downloadBlob(out, 'histoprep_batch.zip');
-  fill.style.width = '0%';
-  $('spinner').classList.add('hidden');
-  $('spinner').textContent = 'Обработка…';
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
 }
 
-async function exportImage(imageData, fmt) {
-  const { width: w, height: h } = imageData;
-  if (fmt === 'png') {
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    c.getContext('2d').putImageData(imageData, 0, 0);
-    return await new Promise(res => c.toBlob(res, 'image/png'));
-  }
-  if (fmt === 'tiff') {
-    // UTIF не умеет писать из готового ImageData легко, но может записать RGBA
-    const rgba = new Uint8Array(imageData.data.buffer);
-    const tiff = UTIF.encodeImage(rgba, w, h);
-    return new Blob([tiff], { type: 'image/tiff' });
-  }
-  throw new Error('Неизвестный формат');
-}
+/* ---------------- BOOT ---------------- */
+state.screen = 'menu';
+reset();
+requestAnimationFrame(loop);
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
-  const box = $('resultLinks');
-  const link = document.createElement('a');
-  link.href = url;
-  link.textContent = '⬇ ' + filename;
-  link.download = filename;
-  box.appendChild(link);
-}
+// блокируем зум/скролл на iOS
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), {passive:false});
 
-function replaceExt(name, ext) {
-  return name.replace(/\.[^.]+$/, '') + ext;
-}
-
-function loadScript(src) {
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = res;
-    s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
-
-// ================================================================
-// UI события
-// ================================================================
-function updateOutputs() {
-  document.querySelectorAll('output').forEach((o) => {
-    const id = o.id.replace(/^o_/, '');
-    const el = $(id);
-    if (!el) return;
-    let val = el.value;
-    if (['wb_strength', 'sharpen_amount', 'flatfield_strength'].includes(id)) {
-      val = parseFloat(val).toFixed(2);
-    }
-    if (id === 'gamma') val = parseFloat(val).toFixed(2);
-    o.textContent = val;
-  });
-}
-
-function resetParams() {
-  const defaults = {
-    flatfield_enabled: true, flatfield_radius: 60, flatfield_strength: 0.8,
-    wb_enabled: true, wb_strength: 1.0,
-    brightness: 0, contrast: 0, gamma: 1.0,
-    clahe_enabled: true, clahe_clip: 2.0, clahe_grid: 8,
-    denoise_enabled: true, denoise_strength: 6,
-    sharpen_enabled: true, sharpen_amount: 0.6, sharpen_radius: 1.2,
-  };
-  for (const [k, v] of Object.entries(defaults)) {
-    const el = $(k);
-    if (!el) continue;
-    if (el.type === 'checkbox') el.checked = v;
-    else el.value = v;
-  }
-  updateOutputs();
-  schedulePreview();
-}
-
-// навешиваем
-$('fileInput').addEventListener('change', (e) => {
-  addFiles(Array.from(e.target.files));
-  e.target.value = '';
-});
-
-document.querySelectorAll('input[type=range]').forEach((el) => {
-  el.addEventListener('input', () => {
-    updateOutputs();
-    if (el.id === 'splitSlider') {
-      $('splitVal').textContent = el.value + '%';
-      // быстрый ре-рендер без пересчёта конвейера
-      if (state.currentIdx >= 0) updatePreview();
-    } else {
-      schedulePreview();
-    }
-  });
-});
-
-document.querySelectorAll('input[type=checkbox], select').forEach((el) => {
-  el.addEventListener('change', schedulePreview);
-});
-
-$('btnReset').onclick = resetParams;
-$('btnProcess').onclick = processCurrent;
-$('btnBatch').onclick = runBatch;
-
-window.addEventListener('resize', () => {
-  if (state.currentIdx >= 0) schedulePreview();
-});
-
-updateOutputs();
+})();
 </script>
 </body>
 </html>
