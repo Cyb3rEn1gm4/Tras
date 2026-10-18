@@ -2,98 +2,445 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
-<title>TRON — DISC BATTLE</title>
+<title>TRON — DISC BATTLE 3D</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
-  html,body{width:100%;height:100%;background:#000;overflow:hidden;touch-action:none;}
-  canvas{display:block;width:100%;height:100%;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;
+    font-family:"Courier New",monospace;touch-action:none;}
+  #c{position:fixed;inset:0;display:block;width:100%;height:100%;}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;padding:14px;
+    display:flex;justify-content:space-between;align-items:flex-start;z-index:5;}
+  .hpwrap{width:min(44vw,200px);}
+  .hpbar{height:11px;border:1px solid #00e5ff;border-radius:3px;
+    background:rgba(0,229,255,.10);overflow:hidden;
+    box-shadow:0 0 14px rgba(0,229,255,.45),inset 0 0 10px rgba(0,229,255,.15);}
+  .hpfill{height:100%;width:100%;background:linear-gradient(90deg,#00b4d8,#00e5ff);
+    box-shadow:0 0 12px #00e5ff;transition:width .12s linear;}
+  .hplabel{color:#00e5ff;font-size:11px;letter-spacing:3px;margin-top:6px;
+    text-shadow:0 0 10px #00e5ff;font-weight:bold;}
+  .stats{text-align:right;color:#00e5ff;font-weight:bold;letter-spacing:2px;
+    text-shadow:0 0 12px #00e5ff;font-size:15px;line-height:1.5;}
+  .stats .sc{font-size:19px;}
+  .waveMsg{position:fixed;left:0;right:0;top:38%;text-align:center;
+    color:#00e5ff;font-size:30px;font-weight:bold;letter-spacing:6px;
+    text-shadow:0 0 25px #00e5ff;pointer-events:none;opacity:0;
+    transition:opacity .25s;z-index:4;}
+  .waveMsg.show{opacity:1;}
+
+  /* ---------- ЭКРАНЫ ---------- */
+  .screen{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:auto;
+    background:radial-gradient(ellipse at center,rgba(0,20,35,.45),rgba(0,0,0,.86));
+    animation:fade .35s ease;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .hidden{display:none!important;}
+
+  .title{font-size:min(17vw,78px);font-weight:bold;letter-spacing:min(3vw,14px);
+    color:#eaffff;text-shadow:0 0 18px #00e5ff,0 0 50px #00e5ff,0 0 90px #0077aa;
+    margin-left:min(3vw,14px);line-height:1;}
+  .subtitle{font-size:min(4.2vw,17px);letter-spacing:min(1.6vw,8px);
+    color:#7fe9ff;margin-top:14px;text-shadow:0 0 14px #00a6cc;
+    font-weight:bold;margin-bottom:min(9vh,70px);}
+
+  .btn{pointer-events:auto;cursor:pointer;position:relative;
+    border:2px solid #00e5ff;border-radius:16px;
+    background:linear-gradient(180deg,rgba(0,229,255,.24),rgba(0,120,170,.14));
+    color:#eaffff;font-family:inherit;font-weight:bold;
+    font-size:min(9vw,36px);letter-spacing:min(2vw,7px);
+    padding:18px 46px;margin-left:min(2vw,7px);
+    text-shadow:0 0 18px #00e5ff;
+    animation:pulse 1.9s ease-in-out infinite;
+    -webkit-appearance:none;appearance:none;outline:none;}
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 26px rgba(0,229,255,.5),inset 0 0 22px rgba(0,229,255,.22);transform:scale(1);}
+    50%{box-shadow:0 0 60px rgba(0,229,255,.95),inset 0 0 40px rgba(0,229,255,.45);transform:scale(1.04);}
+  }
+  .btn:active{transform:scale(.96);}
+
+  .hint{position:absolute;bottom:8%;left:0;right:0;text-align:center;
+    color:rgba(0,229,255,.55);font-size:12px;letter-spacing:2px;line-height:2;}
+  .best{position:absolute;bottom:3.5%;left:0;right:0;text-align:center;
+    color:rgba(0,229,255,.4);font-size:12px;letter-spacing:3px;font-weight:bold;}
+
+  .goTitle{font-size:min(11vw,50px);font-weight:bold;letter-spacing:min(2vw,9px);
+    color:#00e5ff;text-shadow:0 0 25px #00e5ff,0 0 70px #00e5ff;margin-left:min(2vw,9px);}
+  .goScore{font-size:min(7vw,26px);color:#c8f8ff;margin-top:22px;letter-spacing:4px;
+    text-shadow:0 0 18px #00a6cc;}
+  .goBest{font-size:min(4vw,15px);color:rgba(0,229,255,.65);margin-top:10px;
+    letter-spacing:3px;margin-bottom:min(8vh,60px);}
+
+  #loadErr{position:fixed;inset:0;z-index:99;display:none;flex-direction:column;
+    align-items:center;justify-content:center;background:#000;color:#ff7a00;
+    font-size:15px;text-align:center;padding:30px;line-height:1.8;letter-spacing:1px;}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="hpwrap">
+    <div class="hpbar"><div class="hpfill" id="hpFill"></div></div>
+    <div class="hplabel" id="hpLabel">HP 100</div>
+  </div>
+  <div class="stats">
+    <div class="sc" id="scLabel">0</div>
+    <div id="waveLabel">WAVE 1</div>
+  </div>
+</div>
+
+<div class="waveMsg" id="waveMsg">WAVE 1</div>
+
+<div class="screen" id="menu">
+  <div class="title">TRON</div>
+  <div class="subtitle">DISC BATTLE 3D</div>
+  <button class="btn" id="runBtn">RUN</button>
+  <div class="hint">◄ ЛЕВАЯ ПОЛОВИНА — ДВИЖЕНИЕ<br>► ПРАВАЯ ПОЛОВИНА — ПРИЦЕЛ И БРОСОК</div>
+  <div class="best" id="bestMenu"></div>
+</div>
+
+<div class="screen hidden" id="over">
+  <div class="goTitle">DEREZZED</div>
+  <div class="goScore" id="goScore">SCORE 0</div>
+  <div class="goBest" id="goBest">BEST 0</div>
+  <button class="btn" id="againBtn">RUN AGAIN</button>
+</div>
+
+<div id="loadErr">
+  ⚠ НЕ УДАЛОСЬ ЗАГРУЗИТЬ 3D-ДВИЖОК<br><br>
+  Проверь интернет и обнови страницу.<br>
+  Three.js грузится с CDN.
+</div>
+
 <script>
-(() => {
-"use strict";
+  window.__ok = false;
+  setTimeout(() => {
+    if (!window.__ok) document.getElementById('loadErr').style.display = 'flex';
+  }, 7000);
+</script>
 
-const DPR = Math.min(window.devicePixelRatio || 1, 2);
-const cvs = document.getElementById('c');
-const ctx = cvs.getContext('2d');
-let W = 0, H = 0;
-
-function resize(){
-  W = window.innerWidth;
-  H = window.innerHeight;
-  cvs.width  = Math.floor(W * DPR);
-  cvs.height = Math.floor(H * DPR);
-  cvs.style.width  = W + 'px';
-  cvs.style.height = H + 'px';
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
 }
-resize();
-window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+</script>
 
-/* ---------------- COLORS ---------------- */
-const CYAN   = '#00e5ff';
-const ORANGE = '#ff7a00';
-const RED    = '#ff3300';
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-/* ---------------- STATE ---------------- */
-const state = {
-  screen: 'menu',          // 'menu' | 'playing' | 'gameover'
-  player: {x:0,y:0,vx:0,vy:0,r:15,hp:100,maxHp:100,cd:0,hurt:0},
-  enemies: [],
-  discs: [],
-  particles: [],
-  score: 0,
-  wave: 0,
-  betweenWaves: true,
-  waveTimer: 0.8,
-  shake: 0,
-  t: 0,
-  best: +(localStorage.getItem('tron_best') || 0)
+window.__ok = true;
+
+/* ══════════════════ БАЗА ══════════════════ */
+const canvas = document.getElementById('c');
+let W = innerWidth, H = innerHeight;
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.setSize(W, H, false);
+renderer.setClearColor(0x000308, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, W/H, 0.1, 400);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 1.15, 0.55, 0.22);
+composer.addPass(bloom);
+
+/* ══════════════════ АРЕНА ══════════════════ */
+const ARENA_R = 16;
+const CAM_ELEV = 72 * Math.PI / 180;
+let camDist = 60, camH = 57, camR = 18;
+
+const COL_CYAN   = 0x00e5ff;
+const COL_ORANGE = 0xff7a00;
+const COL_RED    = 0xff2200;
+
+/* пол */
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(ARENA_R, 96),
+  new THREE.MeshBasicMaterial({color:0x020a14})
+);
+floor.rotation.x = -Math.PI/2;
+floor.position.y = -0.02;
+scene.add(floor);
+
+/* сетка */
+(function buildGrid(){
+  const pos = [];
+  for (let r = 2; r <= ARENA_R; r += 2){
+    const seg = 96;
+    for (let i = 0; i < seg; i++){
+      const a0 = i/seg*Math.PI*2, a1 = (i+1)/seg*Math.PI*2;
+      pos.push(Math.cos(a0)*r, 0, Math.sin(a0)*r);
+      pos.push(Math.cos(a1)*r, 0, Math.sin(a1)*r);
+    }
+  }
+  for (let i = 0; i < 24; i++){
+    const a = i/24*Math.PI*2;
+    pos.push(Math.cos(a)*2, 0, Math.sin(a)*2);
+    pos.push(Math.cos(a)*ARENA_R, 0, Math.sin(a)*ARENA_R);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const m = new THREE.LineBasicMaterial({
+    color:0x00b4d8, transparent:true, opacity:0.45,
+    blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  scene.add(new THREE.LineSegments(g, m));
+})();
+
+/* стена */
+const wall = new THREE.Mesh(
+  new THREE.CylinderGeometry(ARENA_R, ARENA_R, 2.6, 96, 1, true),
+  new THREE.MeshBasicMaterial({
+    color:COL_CYAN, transparent:true, opacity:0.055,
+    side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false
+  })
+);
+wall.position.y = 1.3;
+scene.add(wall);
+
+function makeRingOutline(radius, tube, color, y){
+  const m = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, tube, 8, 128),
+    new THREE.MeshBasicMaterial({color})
+  );
+  m.rotation.x = -Math.PI/2;
+  m.position.y = y;
+  scene.add(m);
+  return m;
+}
+makeRingOutline(ARENA_R, 0.07, COL_CYAN, 0.06);
+const topRing = makeRingOutline(ARENA_R, 0.05, COL_CYAN, 2.6);
+
+/* ══════════════════ ИГРОК ══════════════════ */
+const playerGroup = new THREE.Group();
+scene.add(playerGroup);
+
+const pRingMat = new THREE.MeshBasicMaterial({color:COL_CYAN});
+const pRing = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.11, 10, 48), pRingMat);
+pRing.rotation.x = -Math.PI/2;
+pRing.position.y = 0.12;
+playerGroup.add(pRing);
+
+const pCoreMat = new THREE.MeshBasicMaterial({color:0xffffff});
+const pCore = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), pCoreMat);
+pCore.position.y = 0.5;
+playerGroup.add(pCore);
+
+const pSpinMat = new THREE.MeshBasicMaterial({
+  color:COL_CYAN, transparent:true, opacity:0.85,
+  blending:THREE.AdditiveBlending, depthWrite:false
+});
+const pSpin = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.05, 8, 40), pSpinMat);
+pSpin.position.y = 0.55;
+playerGroup.add(pSpin);
+
+/* подсветка под игроком */
+const pHalo = new THREE.Mesh(
+  new THREE.TorusGeometry(1.25, 0.09, 8, 48),
+  new THREE.MeshBasicMaterial({color:COL_CYAN, transparent:true, opacity:0.28,
+    blending:THREE.AdditiveBlending, depthWrite:false})
+);
+pHalo.rotation.x = -Math.PI/2;
+pHalo.position.y = 0.03;
+playerGroup.add(pHalo);
+
+/* ══════════════════ ШАРЫ ══════════════════ */
+const enemyBodyGeo = new THREE.IcosahedronGeometry(0.68, 0);
+const enemyRingGeo = new THREE.TorusGeometry(0.95, 0.055, 8, 32);
+
+function makeEnemyMesh(){
+  const g = new THREE.Group();
+  const matBody = new THREE.MeshBasicMaterial({color:COL_ORANGE});
+  const body = new THREE.Mesh(enemyBodyGeo, matBody);
+  body.position.y = 0.78;
+  g.add(body);
+
+  const matRing = new THREE.MeshBasicMaterial({
+    color:COL_ORANGE, transparent:true, opacity:0.5,
+    blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const ring = new THREE.Mesh(enemyRingGeo, matRing);
+  ring.rotation.x = -Math.PI/2;
+  ring.position.y = 0.05;
+  g.add(ring);
+
+  g.userData = {matBody, matRing};
+  return g;
+}
+
+/* ══════════════════ ДИСКИ ══════════════════ */
+const discTorusGeo = new THREE.TorusGeometry(0.42, 0.1, 8, 24);
+const discCoreGeo  = new THREE.SphereGeometry(0.13, 8, 6);
+const discMatP  = new THREE.MeshBasicMaterial({color:COL_CYAN});
+const discMatE  = new THREE.MeshBasicMaterial({color:COL_RED});
+const discMatW  = new THREE.MeshBasicMaterial({color:0xffffff});
+
+function makeDiscMesh(owner){
+  const g = new THREE.Group();
+  const m = owner === 'player' ? discMatP : discMatE;
+  g.add(new THREE.Mesh(discTorusGeo, m));
+  g.add(new THREE.Mesh(discCoreGeo, discMatW));
+  return g;
+}
+
+/* ══════════════════ ЧАСТИЦЫ ══════════════════ */
+const MAXP = 1400;
+const parts = [];
+
+const pGeo = new THREE.BufferGeometry();
+const pPosArr = new Float32Array(MAXP*3);
+const pColArr = new Float32Array(MAXP*3);
+const pSizArr = new Float32Array(MAXP);
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPosArr, 3));
+pGeo.setAttribute('pcolor',   new THREE.BufferAttribute(pColArr, 3));
+pGeo.setAttribute('psize',    new THREE.BufferAttribute(pSizArr, 1));
+pGeo.setDrawRange(0, 0);
+
+const pMat = new THREE.ShaderMaterial({
+  vertexShader: `
+    attribute vec3 pcolor;
+    attribute float psize;
+    varying vec3 vColor;
+    void main(){
+      vColor = pcolor;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = psize * (260.0 / -mv.z);
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor;
+    void main(){
+      vec2 c = gl_PointCoord - 0.5;
+      float d = length(c);
+      if (d > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, d);
+      gl_FragColor = vec4(vColor * a, a);
+    }`,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+});
+const points = new THREE.Points(pGeo, pMat);
+points.frustumCulled = false;
+scene.add(points);
+
+function spawnParticle(x,y,z, vx,vy,vz, life, size, r,g,b){
+  if (parts.length >= MAXP) return;
+  parts.push({x,y,z,vx,vy,vz, life, max:life, size, r,g,b});
+}
+
+function spawnBurst(x,y,z, r,g,b, count, speed){
+  for (let i = 0; i < count; i++){
+    const a = Math.random()*Math.PI*2;
+    const e = (Math.random()-0.5)*Math.PI;
+    const s = speed*(0.25 + Math.random()*0.75);
+    spawnParticle(
+      x, y, z,
+      Math.cos(a)*Math.cos(e)*s,
+      Math.sin(e)*s*0.85 + 1.5,
+      Math.sin(a)*Math.cos(e)*s,
+      0.45 + Math.random()*0.45,
+      0.45 + Math.random()*0.75,
+      r,g,b
+    );
+  }
+}
+
+function updateParticles(dt){
+  for (let i = parts.length-1; i >= 0; i--){
+    const p = parts[i];
+    p.life -= dt;
+    if (p.life <= 0){ parts.splice(i,1); continue; }
+    p.x += p.vx*dt; p.y += p.vy*dt; p.z += p.vz*dt;
+    p.vy -= 4.0*dt;
+    const damp = Math.pow(0.06, dt);
+    p.vx *= damp; p.vy *= damp; p.vz *= damp;
+  }
+
+  const n = Math.min(parts.length, MAXP);
+  for (let i = 0; i < n; i++){
+    const p = parts[i];
+    const k = p.life / p.max;
+    pPosArr[i*3]   = p.x;
+    pPosArr[i*3+1] = p.y;
+    pPosArr[i*3+2] = p.z;
+    pColArr[i*3]   = p.r * k;
+    pColArr[i*3+1] = p.g * k;
+    pColArr[i*3+2] = p.b * k;
+    pSizArr[i]     = p.size * (0.35 + 0.65*k);
+  }
+  pGeo.setDrawRange(0, n);
+  pGeo.attributes.position.needsUpdate = true;
+  pGeo.attributes.pcolor.needsUpdate = true;
+  pGeo.attributes.psize.needsUpdate = true;
+}
+
+/* ══════════════════ ПРИЦЕЛ ══════════════════ */
+const aimRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.55, 0.055, 8, 32),
+  new THREE.MeshBasicMaterial({color:COL_CYAN, transparent:true, opacity:0.9})
+);
+aimRing.rotation.x = -Math.PI/2;
+aimRing.visible = false;
+scene.add(aimRing);
+
+const aimLineGeo = new THREE.BufferGeometry();
+aimLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+const aimLine = new THREE.Line(aimLineGeo, new THREE.LineBasicMaterial({
+  color:COL_CYAN, transparent:true, opacity:0.35
+}));
+aimLine.visible = false;
+scene.add(aimLine);
+
+/* ══════════════════ СОСТОЯНИЕ ИГРЫ ══════════════════ */
+const game = {
+  state:'menu',
+  player:{x:0, z:5.5, vx:0, vz:0, hp:100, maxHp:100, cd:0, hurt:0},
+  enemies:[], discs:[],
+  score:0, wave:0,
+  betweenWaves:true, waveTimer:0.8,
+  t:0, shake:0,
+  best:+(localStorage.getItem('tron3d_best') || 0)
 };
 
-/* ---------------- INPUT ---------------- */
+/* ══════════════════ ВВОД ══════════════════ */
 const input = {
-  move: {id:null, ox:0, oy:0, x:0, y:0, active:false},
-  aim:  {id:null, x:0, y:0, active:false}
+  move:{id:null, ox:0, oy:0, x:0, y:0, active:false},
+  aim: {id:null, x:0, y:0, active:false}
 };
 
-function pos(e){
-  const r = cvs.getBoundingClientRect();
-  return {x: e.clientX - r.left, y: e.clientY - r.top};
+function buzz(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(_){} }
+
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+const tmpV2 = new THREE.Vector2();
+const tmpV3 = new THREE.Vector3();
+
+function screenToWorld(sx, sy){
+  tmpV2.set((sx/W)*2 - 1, -(sy/H)*2 + 1);
+  raycaster.setFromCamera(tmpV2, camera);
+  if (raycaster.ray.intersectPlane(groundPlane, tmpV3)) return tmpV3;
+  return null;
 }
 
-function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(_){} }
-
-function inRect(x, y, rx, ry, rw, rh){
-  return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
-}
-
-cvs.addEventListener('pointerdown', e => {
+function onDown(e){
   e.preventDefault();
-  const {x, y} = pos(e);
+  if (game.state !== 'playing') return;
+  const x = e.clientX, y = e.clientY;
 
-  // МЕНЮ — любой тап запускает игру (кнопка RUN — главный акцент)
-  if (state.screen === 'menu'){
-    startGame();
-    buzz(18);
-    return;
-  }
-
-  // GAME OVER — любой тап = рестарт
-  if (state.screen === 'gameover'){
-    startGame();
-    buzz(18);
-    return;
-  }
-
-  // ИГРА
-  if (x < W * 0.5) {
+  if (x < W*0.5){
     if (input.move.active) return;
     input.move.id = e.pointerId;
     input.move.ox = x; input.move.oy = y;
@@ -105,704 +452,498 @@ cvs.addEventListener('pointerdown', e => {
     input.aim.x = x; input.aim.y = y;
     input.aim.active = true;
   }
-}, {passive:false});
+}
+
+canvas.addEventListener('pointerdown', onDown, {passive:false});
 
 window.addEventListener('pointermove', e => {
-  if (e.pointerId === input.move.id) {
-    const {x,y} = pos(e);
-    input.move.x = x; input.move.y = y;
+  if (e.pointerId === input.move.id){ input.move.x = e.clientX; input.move.y = e.clientY; }
+  if (e.pointerId === input.aim.id){  input.aim.x  = e.clientX; input.aim.y  = e.clientY; }
+}, {passive:false});
+
+window.addEventListener('pointerup', e => {
+  if (e.pointerId === input.move.id){
+    input.move.active = false; input.move.id = null;
   }
-  if (e.pointerId === input.aim.id) {
-    const {x,y} = pos(e);
-    input.aim.x = x; input.aim.y = y;
+  if (e.pointerId === input.aim.id){
+    const w = screenToWorld(e.clientX, e.clientY);
+    if (w) throwDisc(w.x, w.z);
+    input.aim.active = false; input.aim.id = null;
   }
 }, {passive:false});
 
-function endPointer(e){
-  if (e.pointerId === input.move.id) {
-    input.move.active = false; input.move.id = null;
-  }
-  if (e.pointerId === input.aim.id) {
-    const {x,y} = pos(e);
-    throwDisc(x, y);
-    input.aim.active = false; input.aim.id = null;
-  }
-}
-window.addEventListener('pointerup', endPointer, {passive:false});
-window.addEventListener('pointercancel', endPointer, {passive:false});
+window.addEventListener('pointercancel', e => {
+  if (e.pointerId === input.move.id){ input.move.active = false; input.move.id = null; }
+  if (e.pointerId === input.aim.id){  input.aim.active = false;  input.aim.id = null; }
+}, {passive:false});
 
-/* ---------------- ACTIONS ---------------- */
-function throwDisc(tx, ty){
-  const p = state.player;
-  if (state.screen !== 'playing' || p.cd > 0) return;
-  let dx = tx - p.x, dy = ty - p.y;
-  const d = Math.hypot(dx, dy);
-  if (d < 4) return;
-  dx /= d; dy /= d;
-  const sp = 780;
-  state.discs.push({
-    x: p.x + dx * p.r, y: p.y + dy * p.r,
-    vx: dx * sp, vy: dy * sp,
-    r: 9, owner: 'player', life: 3.2, trail: []
+/* ══════════════════ ДЕЙСТВИЯ ══════════════════ */
+function throwDisc(tx, tz){
+  const p = game.player;
+  if (game.state !== 'playing' || p.cd > 0) return;
+
+  let dx = tx - p.x, dz = tz - p.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 0.6) return;
+  dx /= d; dz /= d;
+
+  const sp = 26;
+  const mesh = makeDiscMesh('player');
+  mesh.position.set(p.x + dx*1.0, 0.62, p.z + dz*1.0);
+  scene.add(mesh);
+
+  game.discs.push({
+    x:p.x + dx*1.0, z:p.z + dz*1.0,
+    y:0.62,
+    vx:dx*sp, vz:dz*sp,
+    r:0.5, owner:'player', life:3.2, mesh, spin:Math.random()*6
   });
-  p.cd = 0.32;
+  p.cd = 0.33;
   buzz(12);
 }
 
-function burst(x, y, color, n, power){
-  power = power || 300;
-  for (let i = 0; i < n; i++){
-    const a = Math.random() * Math.PI * 2;
-    const s = 60 + Math.random() * power;
-    state.particles.push({
-      x, y,
-      vx: Math.cos(a) * s,
-      vy: Math.sin(a) * s,
-      life: 0.5 + Math.random() * 0.35,
-      max: 0.85,
-      color,
-      size: 1.5 + Math.random() * 3
-    });
-  }
-}
-
-/* ---------------- WAVES ---------------- */
+/* ══════════════════ ВОЛНЫ ══════════════════ */
 function spawnWave(){
-  const n = Math.min(1 + Math.floor(state.wave / 2), 5);
-  const p = state.player;
-  for (let i = 0; i < n; i++){
-    let x = 0, y = 0, tries = 0;
-    do {
-      const side = Math.floor(Math.random() * 4);
-      if (side === 0){ x = 60 + Math.random() * (W - 120); y = 70; }
-      else if (side === 1){ x = W - 70; y = 60 + Math.random() * (H - 120); }
-      else if (side === 2){ x = 60 + Math.random() * (W - 120); y = H - 70; }
-      else { x = 70; y = 60 + Math.random() * (H - 120); }
-      tries++;
-    } while (Math.hypot(x - p.x, y - p.y) < 220 && tries < 20);
+  const n = Math.min(1 + Math.floor(game.wave/2), 5);
+  const base = Math.random()*Math.PI*2;
+  const p = game.player;
 
-    state.enemies.push({
-      x, y, r: 14,
-      hp: 100, maxHp: 100,
-      cd: 0.9 + Math.random() * 1.2,
-      hurt: 0,
-      speed: 72 + state.wave * 7,
-      strafeDir: Math.random() < 0.5 ? 1 : -1
+  for (let i = 0; i < n; i++){
+    const a = base + (i/Math.max(1,n))*Math.PI*2 + (Math.random()-0.5)*0.6;
+    const rad = ARENA_R*0.85;
+    let x = Math.cos(a)*rad, z = Math.sin(a)*rad;
+
+    let tries = 0;
+    while (Math.hypot(x-p.x, z-p.z) < 7 && tries < 12){
+      const a2 = Math.random()*Math.PI*2;
+      x = Math.cos(a2)*rad; z = Math.sin(a2)*rad;
+      tries++;
+    }
+
+    const mesh = makeEnemyMesh();
+    mesh.position.set(x, 0, z);
+    scene.add(mesh);
+
+    game.enemies.push({
+      x, z, r:0.85, hp:100, maxHp:100,
+      cd:1.0 + Math.random()*1.4,
+      hurt:0,
+      speed:4.2 + game.wave*0.45,
+      strafe: Math.random() < 0.5 ? 1 : -1,
+      spin: Math.random()*6,
+      mesh
     });
   }
 }
 
-/* ---------------- START / RESET ---------------- */
-function reset(){
-  const p = state.player;
-  p.x = W / 2;
-  p.y = H * 0.72;
-  p.vx = p.vy = 0;
-  p.hp = p.maxHp;
-  p.cd = 0;
-  p.hurt = 0;
+/* ══════════════════ СБРОС / СТАРТ ══════════════════ */
+function clearGame(){
+  for (const e of game.enemies) scene.remove(e.mesh);
+  for (const d of game.discs) scene.remove(d.mesh);
+  game.enemies.length = 0;
+  game.discs.length = 0;
+  parts.length = 0;
+}
 
-  state.enemies.length = 0;
-  state.discs.length = 0;
-  state.particles.length = 0;
-  state.score = 0;
-  state.wave = 0;
-  state.betweenWaves = true;
-  state.waveTimer = 0.8;
-  state.shake = 0;
+function resetGame(){
+  clearGame();
+  const p = game.player;
+  p.x = 0; p.z = 5.5;
+  p.vx = p.vz = 0;
+  p.hp = p.maxHp;
+  p.cd = 0; p.hurt = 0;
+
+  game.score = 0;
+  game.wave = 0;
+  game.betweenWaves = true;
+  game.waveTimer = 0.8;
+  game.shake = 0;
 
   input.move.active = false; input.move.id = null;
   input.aim.active = false;  input.aim.id = null;
+
+  aimRing.visible = false;
+  aimLine.visible = false;
+
+  playerGroup.position.set(p.x, 0, p.z);
+}
+
+/* ══════════════════ UI ══════════════════ */
+const menuEl   = document.getElementById('menu');
+const overEl   = document.getElementById('over');
+const hudEl    = document.getElementById('hud');
+const hpFill   = document.getElementById('hpFill');
+const hpLabel  = document.getElementById('hpLabel');
+const scLabel  = document.getElementById('scLabel');
+const waveLabel= document.getElementById('waveLabel');
+const waveMsg  = document.getElementById('waveMsg');
+const bestMenu = document.getElementById('bestMenu');
+const goScore  = document.getElementById('goScore');
+const goBest   = document.getElementById('goBest');
+
+let waveMsgTimer = 0;
+function showWaveMsg(n){
+  waveMsg.textContent = 'WAVE ' + n;
+  waveMsg.classList.add('show');
+  waveMsgTimer = 1.1;
 }
 
 function startGame(){
-  reset();
-  state.screen = 'playing';
+  resetGame();
+  game.state = 'playing';
+  menuEl.classList.add('hidden');
+  overEl.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  game.betweenWaves = true;
+  game.waveTimer = 0.5;
 }
 
-/* ---------------- UPDATE ---------------- */
-function update(dt){
-  state.t += dt;
-  state.shake *= Math.pow(0.001, dt);
-  if (state.shake < 0.3) state.shake = 0;
+function gameOver(){
+  game.state = 'gameover';
+  hudEl.classList.add('hidden');
+  aimRing.visible = false;
+  aimLine.visible = false;
 
-  // частицы и тряска живут всегда (для красоты меню/гейм-овера)
-  for (let i = state.particles.length - 1; i >= 0; i--){
-    const pt = state.particles[i];
-    pt.x += pt.vx * dt;
-    pt.y += pt.vy * dt;
-    pt.vx *= Math.pow(0.08, dt);
-    pt.vy *= Math.pow(0.08, dt);
-    pt.life -= dt;
-    if (pt.life <= 0) state.particles.splice(i, 1);
+  if (game.score > game.best){
+    game.best = game.score;
+    localStorage.setItem('tron3d_best', String(game.best));
+  }
+  goScore.textContent = 'SCORE ' + game.score;
+  goBest.textContent  = 'BEST ' + game.best;
+  overEl.classList.remove('hidden');
+}
+
+document.getElementById('runBtn').addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  buzz(20); startGame();
+});
+document.getElementById('againBtn').addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  buzz(20); startGame();
+});
+menuEl.addEventListener('pointerdown', e => {
+  if (e.target.closest('.btn')) return;
+  e.preventDefault(); buzz(15); startGame();
+});
+overEl.addEventListener('pointerdown', e => {
+  if (e.target.closest('.btn')) return;
+  e.preventDefault(); buzz(15); startGame();
+});
+
+/* ══════════════════ ОБНОВЛЕНИЕ ══════════════════ */
+function update(dt){
+  game.t += dt;
+  game.shake *= Math.pow(0.0015, dt);
+  if (game.shake < 0.05) game.shake = 0;
+
+  updateParticles(dt);
+
+  // анимации, которые живут всегда
+  pSpin.rotation.y += dt * 2.2;
+  pHalo.rotation.z += dt * 0.6;
+  topRing.rotation.z += dt * 0.08;
+
+  if (waveMsgTimer > 0){
+    waveMsgTimer -= dt;
+    if (waveMsgTimer <= 0) waveMsg.classList.remove('show');
   }
 
-  if (state.screen !== 'playing') return;
+  if (game.state !== 'playing') return;
 
-  const p = state.player;
+  const p = game.player;
 
-  /* ---- player movement ---- */
-  let mvx = 0, mvy = 0;
+  /* ---- движение ---- */
+  let mvx = 0, mvz = 0;
   if (input.move.active){
     const dx = input.move.x - input.move.ox;
     const dy = input.move.y - input.move.oy;
     const d = Math.hypot(dx, dy);
-    if (d > 7){
-      const m = Math.min(d / 65, 1);
-      mvx = (dx / d) * m;
-      mvy = (dy / d) * m;
+    if (d > 8){
+      const m = Math.min(d/70, 1);
+      mvx = (dx/d) * m;
+      mvz = (dy/d) * m;
     }
   }
-  const SPD = 340;
-  const lerp = Math.min(1, dt * 15);
-  p.vx += (mvx * SPD - p.vx) * lerp;
-  p.vy += (mvy * SPD - p.vy) * lerp;
+  const SPD = 12.5;
+  const lerp = Math.min(1, dt*14);
+  p.vx += (mvx*SPD - p.vx) * lerp;
+  p.vz += (mvz*SPD - p.vz) * lerp;
   p.x += p.vx * dt;
-  p.y += p.vy * dt;
+  p.z += p.vz * dt;
 
-  if (p.x < p.r){ p.x = p.r; p.vx = 0; }
-  if (p.x > W - p.r){ p.x = W - p.r; p.vx = 0; }
-  if (p.y < p.r){ p.y = p.r; p.vy = 0; }
-  if (p.y > H - p.r){ p.y = H - p.r; p.vy = 0; }
+  // ограничение круглой ареной
+  const pr = Math.hypot(p.x, p.z);
+  const plim = ARENA_R - 1.0;
+  if (pr > plim){
+    p.x = p.x/pr*plim;
+    p.z = p.z/pr*plim;
+  }
 
-  p.cd -= dt;
-  p.hurt = Math.max(0, p.hurt - dt * 3);
+  p.cd = Math.max(0, p.cd - dt);
+  p.hurt = Math.max(0, p.hurt - dt*3);
 
-  /* ---- discs ---- */
-  for (let i = state.discs.length - 1; i >= 0; i--){
-    const d = state.discs[i];
+  playerGroup.position.set(p.x, 0, p.z);
 
-    d.trail.push({x: d.x, y: d.y});
-    if (d.trail.length > 9) d.trail.shift();
+  // вспышка при попадании
+  const hk = p.hurt;
+  pRingMat.color.setRGB(hk, 0.9 + 0.1*hk, 1);
+  pCoreMat.color.setRGB(1, 1, 1);
+  const sc = 1 + hk*0.35;
+  playerGroup.scale.setScalar(sc);
+  pSpin.rotation.y += dt * 2.0;
+
+  /* ---- прицел ---- */
+  if (input.aim.active){
+    const w = screenToWorld(input.aim.x, input.aim.y);
+    if (w){
+      aimRing.visible = true;
+      aimRing.position.set(w.x, 0.05, w.z);
+      aimRing.rotation.z += dt * 4;
+      const s = 1 + Math.sin(game.t*8)*0.12;
+      aimRing.scale.setScalar(s);
+
+      const arr = aimLineGeo.attributes.position.array;
+      arr[0] = p.x; arr[1] = 0.15; arr[2] = p.z;
+      arr[3] = w.x; arr[4] = 0.15; arr[5] = w.z;
+      aimLineGeo.attributes.position.needsUpdate = true;
+      aimLine.visible = true;
+    }
+  } else {
+    aimRing.visible = false;
+    aimLine.visible = false;
+  }
+
+  /* ---- диски ---- */
+  for (let i = game.discs.length-1; i >= 0; i--){
+    const d = game.discs[i];
 
     d.x += d.vx * dt;
-    d.y += d.vy * dt;
+    d.z += d.vz * dt;
     d.life -= dt;
+    d.spin += dt * 22;
 
-    if (d.x < d.r){ d.x = d.r; d.vx = Math.abs(d.vx); }
-    if (d.x > W - d.r){ d.x = W - d.r; d.vx = -Math.abs(d.vx); }
-    if (d.y < d.r){ d.y = d.r; d.vy = Math.abs(d.vy); }
-    if (d.y > H - d.r){ d.y = H - d.r; d.vy = -Math.abs(d.vy); }
+    // отскок от стены
+    const dr = Math.hypot(d.x, d.z);
+    const dlim = ARENA_R - d.r;
+    if (dr > dlim){
+      const nx = d.x/dr, nz = d.z/dr;
+      d.x = nx*dlim; d.z = nz*dlim;
+      const dot = d.vx*nx + d.vz*nz;
+      d.vx -= 2*dot*nx;
+      d.vz -= 2*dot*nz;
+      spawnBurst(d.x, 0.4, d.z,
+        d.owner==='player'?0:1, d.owner==='player'?0.9:0.35, d.owner==='player'?1:0.1,
+        6, 4);
+    }
 
-    if (d.life <= 0){ state.discs.splice(i, 1); continue; }
+    d.mesh.position.set(d.x, d.y, d.z);
+    d.mesh.rotation.y = d.spin;
+    d.mesh.rotation.x = 0.35;
+
+    // след
+    spawnParticle(
+      d.x, d.y, d.z, 0,0,0,
+      0.28, 0.55,
+      d.owner==='player'?0:1,
+      d.owner==='player'?0.9:0.32,
+      d.owner==='player'?1:0.05
+    );
+
+    if (d.life <= 0){
+      scene.remove(d.mesh);
+      game.discs.splice(i, 1);
+      continue;
+    }
 
     if (d.owner === 'player'){
       let hit = false;
-      for (let j = state.enemies.length - 1; j >= 0; j--){
-        const e = state.enemies[j];
-        if (Math.hypot(d.x - e.x, d.y - e.y) < d.r + e.r){
+      for (let j = game.enemies.length-1; j >= 0; j--){
+        const e = game.enemies[j];
+        if (Math.hypot(d.x-e.x, d.z-e.z) < d.r + e.r){
           e.hp -= 34;
           e.hurt = 1;
-          state.score += 10;
-          state.shake = Math.max(state.shake, 7);
-          burst(d.x, d.y, CYAN, 16, 340);
-          buzz(22);
+          game.score += 10;
+          game.shake = Math.max(game.shake, 0.22);
+          spawnBurst(d.x, 0.8, d.z, 0, 0.9, 1, 16, 7);
+          buzz(20);
           hit = true;
 
           if (e.hp <= 0){
-            burst(e.x, e.y, ORANGE, 34, 460);
-            state.enemies.splice(j, 1);
-            state.score += 100;
-            state.shake = Math.max(state.shake, 14);
+            spawnBurst(e.x, 0.9, e.z, 1, 0.45, 0, 34, 9);
+            scene.remove(e.mesh);
+            game.enemies.splice(j, 1);
+            game.score += 100;
+            game.shake = Math.max(game.shake, 0.45);
             buzz([20, 40, 30]);
           }
           break;
         }
       }
-      if (hit) state.discs.splice(i, 1);
+      if (hit){
+        scene.remove(d.mesh);
+        game.discs.splice(i, 1);
+      }
     } else {
-      if (Math.hypot(d.x - p.x, d.y - p.y) < d.r + p.r){
+      if (Math.hypot(d.x-p.x, d.z-p.z) < d.r + 0.95){
         p.hp -= 12;
         p.hurt = 1;
-        state.shake = Math.max(state.shake, 11);
-        burst(d.x, d.y, RED, 18, 320);
+        game.shake = Math.max(game.shake, 0.35);
+        spawnBurst(d.x, 0.8, d.z, 1, 0.15, 0, 18, 7);
         buzz(45);
-        state.discs.splice(i, 1);
+        scene.remove(d.mesh);
+        game.discs.splice(i, 1);
 
         if (p.hp <= 0){
           p.hp = 0;
-          state.screen = 'gameover';
-          state.shake = 26;
-          burst(p.x, p.y, CYAN, 60, 520);
-          if (state.score > state.best){
-            state.best = state.score;
-            localStorage.setItem('tron_best', String(state.best));
-          }
+          game.shake = 1.1;
+          spawnBurst(p.x, 0.8, p.z, 0, 0.9, 1, 60, 12);
+          gameOver();
+          return;
         }
       }
     }
   }
 
-  /* ---- enemies ---- */
-  for (const e of state.enemies){
-    e.hurt = Math.max(0, e.hurt - dt * 3);
+  /* ---- враги ---- */
+  for (let i = game.enemies.length-1; i >= 0; i--){
+    const e = game.enemies[i];
+    e.hurt = Math.max(0, e.hurt - dt*3);
     e.cd -= dt;
+    e.spin += dt*1.5;
 
-    const dx = p.x - e.x, dy = p.y - e.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const nx = dx / dist, ny = dy / dist;
-    const sp = e.speed;
+    const dx = p.x - e.x, dz = p.z - e.z;
+    const dist = Math.hypot(dx, dz) || 0.001;
+    const nx = dx/dist, nz = dz/dist;
 
-    if (dist > 250){
-      e.x += nx * sp * dt;
-      e.y += ny * sp * dt;
-    } else if (dist < 165){
-      e.x -= nx * sp * dt;
-      e.y -= ny * sp * dt;
-    } else {
-      e.x += -ny * sp * dt * 0.8 * e.strafeDir;
-      e.y += nx * sp * dt * 0.8 * e.strafeDir;
-    }
+    let mx = 0, mz = 0;
+    if (dist > 9){ mx = nx; mz = nz; }
+    else if (dist < 5.5){ mx = -nx; mz = -nz; }
+    else { mx = -nz*e.strafe; mz = nx*e.strafe; }
 
-    if (e.x < e.r) e.x = e.r;
-    if (e.x > W - e.r) e.x = W - e.r;
-    if (e.y < e.r) e.y = e.r;
-    if (e.y > H - e.r) e.y = H - e.r;
+    e.x += mx * e.speed * dt;
+    e.z += mz * e.speed * dt;
 
-    if (e.cd <= 0 && dist < 620){
-      const err = 0.14;
-      const a = Math.atan2(ny, nx) + (Math.random() - 0.5) * err * 2;
-      const dsp = 470 + state.wave * 10;
-      state.discs.push({
-        x: e.x + Math.cos(a) * (e.r + 2),
-        y: e.y + Math.sin(a) * (e.r + 2),
-        vx: Math.cos(a) * dsp,
-        vy: Math.sin(a) * dsp,
-        r: 9, owner: 'enemy', life: 3.2, trail: []
+    const er = Math.hypot(e.x, e.z);
+    const elim = ARENA_R - 1.3;
+    if (er > elim){ e.x = e.x/er*elim; e.z = e.z/er*elim; }
+
+    e.mesh.position.set(e.x, 0, e.z);
+    e.mesh.rotation.y = e.spin;
+
+    const h = e.hurt;
+    e.mesh.userData.matBody.color.setRGB(1, 0.48 + 0.52*h, 1.0*h);
+    e.mesh.userData.matRing.color.setRGB(1, 0.48 + 0.52*h, 1.0*h);
+
+    if (e.cd <= 0 && dist < 24 && game.state === 'playing'){
+      const ang = Math.atan2(nz, nx) + (Math.random()-0.5)*0.26;
+      const sp = 15 + game.wave*0.5;
+
+      const mesh = makeDiscMesh('enemy');
+      mesh.position.set(
+        e.x + Math.cos(ang)*1.0, 0.62,
+        e.z + Math.sin(ang)*1.0
+      );
+      scene.add(mesh);
+
+      game.discs.push({
+        x:e.x + Math.cos(ang)*1.0,
+        z:e.z + Math.sin(ang)*1.0,
+        y:0.62,
+        vx:Math.cos(ang)*sp,
+        vz:Math.sin(ang)*sp,
+        r:0.5, owner:'enemy', life:3.4, mesh, spin:Math.random()*6
       });
-      e.cd = Math.max(0.75, 1.45 - state.wave * 0.05) + Math.random() * 0.8;
+
+      e.cd = Math.max(0.85, 1.7 - game.wave*0.06) + Math.random()*0.7;
     }
   }
 
-  /* ---- waves ---- */
-  if (state.enemies.length === 0 && !state.betweenWaves){
-    state.betweenWaves = true;
-    state.waveTimer = 1.4;
+  /* ---- волны ---- */
+  if (game.enemies.length === 0 && !game.betweenWaves){
+    game.betweenWaves = true;
+    game.waveTimer = 1.5;
   }
-  if (state.betweenWaves){
-    state.waveTimer -= dt;
-    if (state.waveTimer <= 0){
-      state.betweenWaves = false;
-      state.wave++;
+  if (game.betweenWaves){
+    game.waveTimer -= dt;
+    if (game.waveTimer <= 0){
+      game.betweenWaves = false;
+      game.wave++;
       spawnWave();
-    }
-  }
-}
-
-/* ---------------- RENDER HELPERS ---------------- */
-function roundRect(x, y, w, h, r){
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function drawGrid(){
-  const gs = 58;
-  const off = (state.t * 14) % gs;
-  ctx.strokeStyle = 'rgba(0,140,190,0.16)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = -off; x < W + gs; x += gs){ ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-  for (let y = -off; y < H + gs; y += gs){ ctx.moveTo(0, y); ctx.lineTo(W, y); }
-  ctx.stroke();
-
-  const g = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.7);
-  g.addColorStop(0, 'rgba(0,80,120,0.10)');
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-}
-
-function drawArena(){
-  ctx.strokeStyle = CYAN;
-  ctx.shadowBlur = 22;
-  ctx.shadowColor = CYAN;
-  ctx.lineWidth = 2.5;
-  ctx.strokeRect(2, 2, W - 4, H - 4);
-  ctx.shadowBlur = 0;
-}
-
-function drawPlayer(){
-  const p = state.player;
-  const col = p.hurt > 0 ? '#ffffff' : CYAN;
-
-  ctx.shadowBlur = 28;
-  ctx.shadowColor = CYAN;
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0;
-
-  ctx.fillStyle = '#001820';
-  ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 0.5, 0, Math.PI * 2); ctx.fill();
-
-  ctx.strokeStyle = CYAN;
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.55 + 0.25 * Math.sin(state.t * 6);
-  ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 7, 0, Math.PI * 2); ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  if (p.cd > 0){
-    ctx.strokeStyle = 'rgba(0,229,255,0.7)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r + 12, -Math.PI/2, -Math.PI/2 + (p.cd / 0.32) * Math.PI * 2);
-    ctx.stroke();
-  }
-}
-
-function drawEnemy(e){
-  const col = e.hurt > 0 ? '#ffffff' : ORANGE;
-
-  ctx.shadowBlur = 22;
-  ctx.shadowColor = ORANGE;
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0;
-
-  ctx.fillStyle = '#201000';
-  ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.45, 0, Math.PI * 2); ctx.fill();
-
-  const w = 32;
-  const hx = e.x - w / 2, hy = e.y - e.r - 14;
-  ctx.fillStyle = 'rgba(255,120,0,0.25)';
-  ctx.fillRect(hx, hy, w, 4);
-  ctx.fillStyle = ORANGE;
-  ctx.fillRect(hx, hy, w * Math.max(0, e.hp) / e.maxHp, 4);
-}
-
-function drawDisc(d){
-  const col = d.owner === 'player' ? CYAN : RED;
-
-  for (let i = 0; i < d.trail.length; i++){
-    const t = d.trail[i];
-    const k = i / d.trail.length;
-    ctx.globalAlpha = k * 0.45;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(t.x, t.y, d.r * k * 0.95, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-
-  ctx.shadowBlur = 26;
-  ctx.shadowColor = col;
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0;
-
-  ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.36, 0, Math.PI * 2); ctx.fill();
-}
-
-function drawParticles(){
-  for (const pt of state.particles){
-    const k = Math.max(0, pt.life / pt.max);
-    ctx.globalAlpha = k;
-    ctx.fillStyle = pt.color;
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, pt.size * k, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawControls(){
-  const p = state.player;
-
-  if (input.move.active){
-    ctx.strokeStyle = 'rgba(0,229,255,0.28)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(input.move.ox, input.move.oy, 52, 0, Math.PI * 2); ctx.stroke();
-
-    let dx = input.move.x - input.move.ox;
-    let dy = input.move.y - input.move.oy;
-    const d = Math.hypot(dx, dy);
-    if (d > 52){ dx = dx / d * 52; dy = dy / d * 52; }
-
-    ctx.fillStyle = 'rgba(0,229,255,0.35)';
-    ctx.shadowBlur = 18; ctx.shadowColor = CYAN;
-    ctx.beginPath(); ctx.arc(input.move.ox + dx, input.move.oy + dy, 24, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-  }
-
-  if (input.aim.active){
-    ctx.strokeStyle = 'rgba(0,229,255,0.55)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([7, 7]);
-    ctx.lineDashOffset = -state.t * 40;
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(input.aim.x, input.aim.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.strokeStyle = CYAN;
-    ctx.shadowBlur = 15; ctx.shadowColor = CYAN;
-    ctx.beginPath(); ctx.arc(input.aim.x, input.aim.y, 13, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(input.aim.x, input.aim.y, 3, 0, Math.PI * 2); ctx.fillStyle = CYAN; ctx.fill();
-    ctx.shadowBlur = 0;
-  }
-}
-
-function drawUI(){
-  const p = state.player;
-  const bw = Math.min(W * 0.42, 210), bh = 13;
-  const x0 = 16, y0 = 16;
-
-  ctx.fillStyle = 'rgba(0,229,255,0.15)';
-  ctx.fillRect(x0, y0, bw, bh);
-
-  ctx.fillStyle = p.hurt > 0 ? '#fff' : CYAN;
-  ctx.shadowBlur = 16; ctx.shadowColor = CYAN;
-  ctx.fillRect(x0, y0, bw * Math.max(0, p.hp) / p.maxHp, bh);
-  ctx.shadowBlur = 0;
-
-  ctx.strokeStyle = CYAN;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(x0, y0, bw, bh);
-
-  ctx.fillStyle = CYAN;
-  ctx.font = 'bold 13px monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('HP ' + Math.ceil(p.hp), x0 + 4, y0 + bh + 6);
-
-  ctx.textAlign = 'right';
-  ctx.font = 'bold 17px monospace';
-  ctx.shadowBlur = 12; ctx.shadowColor = CYAN;
-  ctx.fillText('SCORE ' + state.score, W - 16, 16);
-  ctx.font = 'bold 15px monospace';
-  ctx.fillText('WAVE ' + Math.max(1, state.wave), W - 16, 40);
-  ctx.shadowBlur = 0;
-
-  if (state.betweenWaves && state.wave > 0){
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,229,255,' + (0.4 + 0.4 * Math.sin(state.t * 8)) + ')';
-    ctx.font = 'bold 26px monospace';
-    ctx.shadowBlur = 25; ctx.shadowColor = CYAN;
-    ctx.fillText('WAVE ' + (state.wave + 1), W / 2, H * 0.42);
-    ctx.shadowBlur = 0;
-  }
-}
-
-/* ---------------- MENU SCREEN ---------------- */
-function drawMenu(){
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  // Заголовок
-  const titleSize = Math.min(64, W * 0.17);
-  ctx.font = 'bold ' + titleSize + 'px monospace';
-  ctx.fillStyle = CYAN;
-  ctx.shadowBlur = 40; ctx.shadowColor = CYAN;
-  ctx.fillText('TRON', W / 2, H * 0.24);
-  ctx.shadowBlur = 0;
-
-  ctx.font = 'bold ' + Math.min(16, W * 0.042) + 'px monospace';
-  ctx.fillStyle = 'rgba(0,229,255,0.75)';
-  ctx.fillText('D I S C   B A T T L E', W / 2, H * 0.24 + titleSize * 0.8);
-
-  // Вращающийся диск
-  const cx = W / 2, cy = H * 0.42, rr = Math.min(28, W * 0.07);
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(state.t * 1.6);
-  ctx.shadowBlur = 30; ctx.shadowColor = CYAN;
-  ctx.fillStyle = CYAN;
-  ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.arc(0, 0, rr * 0.38, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = CYAN;
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(0, 0, rr + 10, 0, Math.PI * 1.4); ctx.stroke();
-  ctx.restore();
-  ctx.shadowBlur = 0;
-
-  // КНОПКА RUN
-  const bw = Math.min(W * 0.66, 320);
-  const bh = 82;
-  const bx = (W - bw) / 2;
-  const by = H * 0.58;
-
-  const pulse = 0.5 + 0.5 * Math.sin(state.t * 3.2);
-
-  // внешнее свечение
-  ctx.shadowBlur = 30 + 25 * pulse;
-  ctx.shadowColor = CYAN;
-
-  // градиент кнопки
-  const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
-  grd.addColorStop(0, 'rgba(0,229,255,' + (0.28 + 0.18 * pulse) + ')');
-  grd.addColorStop(1, 'rgba(0,120,170,' + (0.30 + 0.15 * pulse) + ')');
-  ctx.fillStyle = grd;
-  roundRect(bx, by, bw, bh, 18);
-  ctx.fill();
-
-  // рамка
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = CYAN;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // текст RUN
-  ctx.fillStyle = '#eaffff';
-  ctx.font = 'bold 40px monospace';
-  ctx.shadowBlur = 22; ctx.shadowColor = CYAN;
-  ctx.fillText('RUN', W / 2, by + bh / 2 - 1);
-  ctx.shadowBlur = 0;
-
-  // треугольник ▶
-  ctx.fillStyle = CYAN;
-  ctx.beginPath();
-  const tx = bx + bw - 44, ty = by + bh / 2;
-  ctx.moveTo(tx, ty - 12);
-  ctx.lineTo(tx + 18, ty);
-  ctx.lineTo(tx, ty + 12);
-  ctx.closePath();
-  ctx.fill();
-
-  // подсказка управления
-  ctx.fillStyle = 'rgba(0,229,255,0.55)';
-  ctx.font = '13px monospace';
-  ctx.fillText('СЛЕВА — ДВИЖЕНИЕ', W / 2, H * 0.80);
-  ctx.fillText('СПРАВА — ПРИЦЕЛ И БРОСОК', W / 2, H * 0.80 + 20);
-
-  // рекорд
-  if (state.best > 0){
-    ctx.fillStyle = 'rgba(0,229,255,0.45)';
-    ctx.font = 'bold 13px monospace';
-    ctx.fillText('BEST: ' + state.best, W / 2, H - 32);
-  }
-
-  // мерцающая подсказка
-  ctx.globalAlpha = 0.4 + 0.4 * Math.sin(state.t * 4);
-  ctx.fillStyle = 'rgba(0,229,255,0.6)';
-  ctx.font = '11px monospace';
-  ctx.fillText('нажми кнопку, чтобы начать', W / 2, by + bh + 26);
-  ctx.globalAlpha = 1;
-}
-
-/* ---------------- GAME OVER ---------------- */
-function drawGameOver(){
-  ctx.fillStyle = 'rgba(0,0,0,0.80)';
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  ctx.fillStyle = CYAN;
-  ctx.shadowBlur = 35; ctx.shadowColor = CYAN;
-  ctx.font = 'bold ' + Math.min(46, W * 0.11) + 'px monospace';
-  ctx.fillText('DEREZZED', W / 2, H * 0.32);
-  ctx.shadowBlur = 0;
-
-  ctx.fillStyle = '#9ff';
-  ctx.font = 'bold 22px monospace';
-  ctx.fillText('SCORE: ' + state.score, W / 2, H * 0.42);
-
-  ctx.fillStyle = 'rgba(0,229,255,0.7)';
-  ctx.font = '16px monospace';
-  ctx.fillText('BEST: ' + state.best, W / 2, H * 0.47);
-
-  // кнопка RUN AGAIN
-  const bw = Math.min(W * 0.66, 320);
-  const bh = 74;
-  const bx = (W - bw) / 2;
-  const by = H * 0.58;
-  const pulse = 0.5 + 0.5 * Math.sin(state.t * 3.2);
-
-  ctx.shadowBlur = 28 + 22 * pulse;
-  ctx.shadowColor = CYAN;
-  const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
-  grd.addColorStop(0, 'rgba(0,229,255,' + (0.26 + 0.16 * pulse) + ')');
-  grd.addColorStop(1, 'rgba(0,120,170,' + (0.28 + 0.14 * pulse) + ')');
-  ctx.fillStyle = grd;
-  roundRect(bx, by, bw, bh, 18);
-  ctx.fill();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = CYAN;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  ctx.fillStyle = '#eaffff';
-  ctx.font = 'bold 26px monospace';
-  ctx.shadowBlur = 20; ctx.shadowColor = CYAN;
-  ctx.fillText('RUN AGAIN', W / 2, by + bh / 2);
-  ctx.shadowBlur = 0;
-
-  ctx.globalAlpha = 0.4 + 0.4 * Math.sin(state.t * 4);
-  ctx.fillStyle = 'rgba(0,229,255,0.6)';
-  ctx.font = '11px monospace';
-  ctx.fillText('нажми в любом месте', W / 2, by + bh + 24);
-  ctx.globalAlpha = 1;
-}
-
-/* ---------------- RENDER ---------------- */
-function render(){
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#000308';
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.save();
-  if (state.shake > 0){
-    ctx.translate(
-      (Math.random() - 0.5) * state.shake,
-      (Math.random() - 0.5) * state.shake
-    );
-  }
-
-  drawGrid();
-  drawArena();
-  drawParticles();
-
-  if (state.screen === 'playing' || state.screen === 'gameover'){
-    for (const d of state.discs) drawDisc(d);
-    for (const e of state.enemies) drawEnemy(e);
-    if (state.screen === 'playing'){
-      drawPlayer();
-      drawControls();
+      showWaveMsg(game.wave);
     }
   }
 
-  ctx.restore();
-
-  if (state.screen === 'playing'){
-    drawUI();
-  } else if (state.screen === 'menu'){
-    drawMenu();
-  } else if (state.screen === 'gameover'){
-    drawGameOver();
-  }
+  /* ---- HUD ---- */
+  hpFill.style.width = (Math.max(0, p.hp)/p.maxHp*100) + '%';
+  hpLabel.textContent = 'HP ' + Math.ceil(Math.max(0, p.hp));
+  scLabel.textContent = game.score;
+  waveLabel.textContent = 'WAVE ' + Math.max(1, game.wave);
 }
 
-/* ---------------- LOOP ---------------- */
-let last = performance.now();
-function loop(now){
-  let dt = (now - last) / 1000;
-  last = now;
+/* ══════════════════ РЕНДЕР ══════════════════ */
+let lastTime = performance.now();
+
+function frame(now){
+  requestAnimationFrame(frame);
+
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
   if (dt > 0.05) dt = 0.05;
   if (dt < 0) dt = 0;
 
   update(dt);
-  render();
-  requestAnimationFrame(loop);
+
+  // камера
+  if (game.state === 'menu'){
+    const a = Math.sin(game.t*0.3) * 0.32;
+    camera.position.set(Math.sin(a)*camR, camH, Math.cos(a)*camR);
+  } else {
+    const sh = game.shake;
+    camera.position.set(
+      (Math.random()-0.5)*sh*1.6,
+      camH + (Math.random()-0.5)*sh*1.6,
+      camR + (Math.random()-0.5)*sh*1.6
+    );
+  }
+  camera.lookAt(0, 0, 0);
+
+  composer.render();
 }
 
-/* ---------------- BOOT ---------------- */
-state.screen = 'menu';
-reset();
-requestAnimationFrame(loop);
+/* ══════════════════ РАЗМЕР ══════════════════ */
+function layout(){
+  W = innerWidth; H = innerHeight;
+  renderer.setSize(W, H, false);
+  composer.setSize(W, H);
 
-// блокируем зум/скролл на iOS
+  camera.aspect = W/H;
+
+  const aspect = W/H;
+  const tanV = Math.tan(30*Math.PI/180);
+  const tanH = tanV * aspect;
+  const VIEW_R = 17.5;
+  const need = Math.max(VIEW_R/tanH, VIEW_R/tanV);
+
+  camDist = need;
+  camH = need * Math.sin(CAM_ELEV);
+  camR = need * Math.cos(CAM_ELEV);
+
+  camera.updateProjectionMatrix();
+}
+
+window.addEventListener('resize', layout);
+window.addEventListener('orientationchange', () => setTimeout(layout, 150));
+
+/* ══════════════════ СТАРТ ══════════════════ */
+layout();
+resetGame();
+bestMenu.textContent = game.best > 0 ? 'BEST ' + game.best : '';
+requestAnimationFrame(frame);
+
+// защита от зума/скролла на iOS
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault(), {passive:false});
 
-})();
 </script>
 </body>
 </html>
